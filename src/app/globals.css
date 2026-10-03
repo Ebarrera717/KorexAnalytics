@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary: #0f172a;
+    --primary-light: #1e293b;
+    --accent: #06b6d4;
+    --accent-hover: #0891b2;
+    --background: #020617;
+    --surface: #0f172a;
+    --border: #1e293b;
+    --text: #f8fafc;
+    --text-muted: #94a3b8;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --info: #0284c7;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--text);
+  }
+}
