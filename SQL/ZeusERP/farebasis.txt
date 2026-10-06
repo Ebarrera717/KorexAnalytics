@@ -1,12 +1,16 @@
-USE [ZeusAgencias_Colaereo]
+USE [ZeusAgencias_23]
 GO
-/****** Object:  StoredProcedure [dbo].[Zeus®spze_VentasFareBasis]    Script Date: 2026/10/06 1:21:52 PM ******/
+/****** Object:  StoredProcedure [dbo].[VentasDetalladasPorConceptos_FiltroRutas] ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
 
-ALTER PROCEDURE [dbo].[Zeus®spze_VentasFareBasis]
+IF OBJECT_ID('[dbo].[Zeus®spze_VentasFareBasis]', 'P') IS NOT NULL
+    DROP PROCEDURE [dbo].[Zeus®spze_VentasFareBasis]
+GO
+
+CREATE PROCEDURE [dbo].[Zeus®spze_VentasFareBasis]
 		@Nacionalidad 				VARCHAR(25)		= NULL	
 		,@Remision 					VARCHAR(25)		= NULL	
 		,@RemFacturadas				VARCHAR(25)		= NULL	
@@ -34,12 +38,14 @@ ALTER PROCEDURE [dbo].[Zeus®spze_VentasFareBasis]
 		,@ds_impretAdicional		VARCHAR(max)	= NULL
 		,@NoMostrarFeeOcultos		VARCHAR(2)		= NULL 
 		,@ds_conceptosunificados	VARCHAR(max)	= NULL
-		,@MostrarCombustible		VARCHAR(2)		= NULL --rgelis 2018/07/24 req.60886
-		,@MostrarTAOCEMColumnas		VARCHAR(2)		= NULL --rgelis 2018/07/24 req.60886
-		,@ds_Categorias				VARCHAR(MAX)	= NULL --rgelis 2019/09/26 req.103216 
+		,@MostrarCombustible		VARCHAR(2)		= NULL
+		,@MostrarTAOCEMColumnas		VARCHAR(2)		= NULL
+		,@ds_Categorias				VARCHAR(MAX)	= NULL
 		,@PorFechaDocumento			VARCHAR(2)		= NULL
 		,@MostrarAnulacion			VARCHAR(2)		= NULL
---With Encryption 
+		,@cd_CiudadOrigen			VARCHAR(1000)	= NULL -- Filtro 1: Primera ciudad (origen del viaje)
+		,@cd_SegundaCiudad			VARCHAR(1000)	= NULL -- Filtro 2: Segunda ciudad del itinerario
+		,@cd_CiudadItinerario		VARCHAR(1000)	= NULL -- Filtro 3: Ciudad en cualquier parte del itinerario
 
 AS 
 BEGIN
@@ -49,8 +55,7 @@ BEGIN
 	SET CONCAT_NULL_YIELDS_NULL OFF;
 	DECLARE 
 		@in_nacionalidad INT, @Descuento INT,@Anulacion INT,@FechaDocumento	INT, @in_Remision INT, @in_RemFacturadas INT,@in_FacGeneradasRem INT, @id_Concepto_facturacion VARCHAR(5000)
-		,@Id_Sucursales VARCHAR(5000),@Id_Implantes VARCHAR(5000),@id_Tiqueteador VARCHAR(8000),@in_MostrarCombustible INT,@in_MostrarTAOCEMColumnas INT --fin rgelis 2018/07/24 req.60886 
-	
+		,@Id_Sucursales VARCHAR(5000),@Id_Implantes VARCHAR(5000),@id_Tiqueteador VARCHAR(8000),@in_MostrarCombustible INT,@in_MostrarTAOCEMColumnas INT
 	
 	Declare @Id_EtapasCotizacion Varchar(250),@Id_TiposVenta Varchar(500)
 	Declare @TableProveedores Table(Id int identity, TipoProveedor Varchar(250))
@@ -76,14 +81,14 @@ BEGIN
 	Declare @ds_conceptosUnificadosAuxUSD VARCHAR(max)
 	Declare @ds_conceptosUnificadosAux2 VARCHAR(max)
 
-	Declare @ds_feeocultos VARCHAR(MAX) --rgelis 2017/11/24 req.54340
+	Declare @ds_feeocultos VARCHAR(MAX)
 	Declare @FAREBASIS VARCHAR(MAX)
-	Declare @TableCategorias Table(Id INT IDENTITY, id_Categoria INT, cd_Categoria VARCHAR(60)) --rgelis 2019/09/26 req.103216 
+	Declare @TableCategorias Table(Id INT IDENTITY, id_Categoria INT, cd_Categoria VARCHAR(60))
 	
-	IF @NoMostrarFeeOcultos='SI' --inicio rgelis 2017/11/24 req.54340
+	IF @NoMostrarFeeOcultos='SI'
 		SELECT @ds_feeocultos = LTRIM(Valor) From dbo.parametros Where id=507   
 	ELSE
-		SET @ds_feeocultos = NULL --fin rgelis 2017/11/24 req.54340
+		SET @ds_feeocultos = NULL
 	 
 	Select @Descuento = 1, @FechaDocumento = 0, @Anulacion=0
 
@@ -122,7 +127,7 @@ BEGIN
 	ELSE
 		SET @in_FacGeneradasRem = 0
 	
-	IF @MostrarCombustible= 'SI' --inicio rgelis 2018/07/24 req.60886
+	IF @MostrarCombustible= 'SI'
 		SET @in_MostrarCombustible = 1
 	ELSE IF @MostrarCombustible = 'NO'
 		SET @in_MostrarCombustible = 0
@@ -134,12 +139,17 @@ BEGIN
 	ELSE IF @MostrarTAOCEMColumnas = 'NO'
 		SET @in_MostrarTAOCEMColumnas = 0
 	ELSE
-		SET @in_MostrarTAOCEMColumnas=0 --fin rgelis 2018/07/24 req.60886
+		SET @in_MostrarTAOCEMColumnas=0
 		
 	IF @MostrarAnulacion = 'SI'
 		SET @Anulacion=1
 	ELSE
 		SET @Anulacion=0
+
+	-- Limpieza de parámetros de rutas
+	SET @cd_CiudadOrigen = LTRIM(RTRIM(NULLIF(@cd_CiudadOrigen, '')))
+	SET @cd_SegundaCiudad = LTRIM(RTRIM(NULLIF(@cd_SegundaCiudad, '')))
+	SET @cd_CiudadItinerario = LTRIM(RTRIM(NULLIF(@cd_CiudadItinerario, '')))
 
 	--Conceptos adicionales
 	INSERT INTO @TableimpretAdicional(id_ImpRet,cd_ImpRet,ds_ImpRet)
@@ -168,17 +178,12 @@ BEGIN
 		OUTER APPLY @TableimpretAdicional AS IR    
 	) CF
 	ORDER BY id_ConceptoFac,id_ImpRet,id_CargoDesc
-	----------------------------------------------------------				
 
 	--Conceptos unificados
 	INSERT INTO @Tableconceptosunificados(id_ConceptoFac,cd_ConceptoFac,ds_ConceptoFac,id_TipoConceptoFac)
 	SELECT CF.id,CF.cd_codigo,CF.ds_nombre,CF.id_TiposConceptoFacturacion
 	FROM dbo.ConceptoFacturacion CF 
 	INNER JOIN dbo.fnSplit(@ds_conceptosunificados,',',0,1) CA ON CA.Codigo = CF.cd_codigo 
-
-	--Select * From @Tableconceptosunificados
-	----------------------------------------------------------				
-
 
 	SET @id_Concepto_facturacion=''
 	IF ISNULL(@cd_ConceptoFacturacion,'') <> '' 
@@ -198,13 +203,6 @@ BEGIN
 			  AND CF.id NOT IN(SELECT id_ConceptoFac FROM @TableconceptosAdicional)
 	END  
 
-	--IF ISNULL(@cd_ConceptoFacturacion,'') = '' AND EXISTS(SELECT id FROM @TableconceptosAdicional) 
-	--BEGIN
-	--	SELECT @id_Concepto_facturacion=@id_Concepto_facturacion+ convert(VARCHAR,CF.id) +','
-	--	FROM ConceptoFacturacion CF 
-	--	WHERE CF.id NOT IN(SELECT id_ConceptoFac FROM @TableconceptosAdicional)
-	--END
-
 	IF @cd_cliente = ''
 		SET @cd_cliente = NULL;
 
@@ -217,7 +215,6 @@ BEGIN
 
 	IF @cd_implante = '' OR @cd_implante = '0'
 		SET @Id_Implantes = NULL;
-	
 	ELSE if @cd_implante='TODOS'
 	BEGIN
 		SET @Id_Implantes = ''
@@ -239,7 +236,6 @@ BEGIN
 	IF @cd_Tercero = ''
 		SET @cd_Tercero = NULL;
 
-
 	SET @Id_Sucursales=''
 	IF @cd_sucursal = ''
 		SET @Id_Sucursales = NULL;
@@ -256,9 +252,7 @@ BEGIN
 	IF @id_Concepto_facturacion = ''
 		SET @id_Concepto_facturacion = NULL;
 
-	
 	set @id_Tiqueteador=''
-
 	IF @cd_Tiqueteador = ''
 		SET @cd_Tiqueteador = NULL;
 	ELSE
@@ -279,7 +273,6 @@ BEGIN
 
 	IF @id_Segmento = ''
 		SET @id_Segmento = NULL;
-	
 
 	IF @ds_EtapasCotizacion <> ''
 	BEGIN
@@ -287,7 +280,6 @@ BEGIN
 		FROM dbo.fnSplit(@ds_EtapasCotizacion,',',0,1) f
 		INNER JOIN Etapas e ON e.cd_codigo = f.codigo
 	END
-
 
 	IF @ds_tipoventa <> ''
 	BEGIN
@@ -338,7 +330,7 @@ BEGIN
 										WHEN F.in_TipoItem=3 THEN dbo.fnza_Get_ValorCargoImpConceptoFacSrvUnificado(F.id,NULL,'''+@ds_conceptosunificados+''',1,0,0'+',F.id_item) 
 										ELSE 0 END' + CHAR(13) + 
 		',IVAUnificado = '   + ' CASE	WHEN F.in_TipoItem=1 THEN dbo.fnza_Get_ValorCargoImpConceptoFacUnificado(F.id,NULL,'''+@ds_conceptosunificados+''',0,1,0'+',F.Documento) 
-										WHEN F.in_TipoItem=3 THEN dbo.fnza_Get_ValorCargoImpConceptoFacSrvUnificado(F.id,NULL,'''+@ds_conceptosunificados+''',0,1,0'+',F.id_item)
+										WHEN F.in_TipoItem=3 THEN dbo.fnza_Get_ValorCargoImpConceptoFacSrvUnificado(F.id,NULL,'''+@ds_conceptosunificados+''',0,1,0'+',F.id_item) 
 										ELSE 0 END' + CHAR(13)	+ 
 		',OtroUnificado = ' + ' CASE	WHEN F.in_TipoItem=1 THEN dbo.fnza_Get_ValorCargoImpConceptoFacUnificado(F.id,NULL,'''+@ds_conceptosunificados+''',0,0,1'+',F.Documento) 
 										WHEN F.in_TipoItem=3 THEN dbo.fnza_Get_ValorCargoImpConceptoFacSrvUnificado(F.id,NULL,'''+@ds_conceptosunificados+''',0,0,1'+',F.id_item) 
@@ -350,8 +342,8 @@ BEGIN
 										WHEN F.in_TipoItem=3 THEN dbo.fnza_Get_ValorCargoImpConceptoFacSrvUnificado(NULL,F.id,'''+@ds_conceptosunificados+''',1,0,0'+',F.id_item) 
 										ELSE 0 END' + CHAR(13) + 
 		',IVAUnificado = '   + ' CASE	WHEN F.in_TipoItem=1 THEN dbo.fnza_Get_ValorCargoImpConceptoFacUnificado(NULL,F.id,'''+@ds_conceptosunificados+''',0,1,0'+',F.Documento) 
-										WHEN F.in_TipoItem=3 THEN dbo.fnza_Get_ValorCargoImpConceptoFacSrvUnificado(NULL,F.id,'''+@ds_conceptosunificados+''',0,1,0'+',F.id_item)
-										ELSE 0 END' + CHAR(13) +
+										WHEN F.in_TipoItem=3 THEN dbo.fnza_Get_ValorCargoImpConceptoFacSrvUnificado(NULL,F.id,'''+@ds_conceptosunificados+''',0,1,0'+',F.id_item) 
+										ELSE 0 END' + CHAR(13) + 
 		',OtroUnificado = ' + ' CASE	WHEN F.in_TipoItem=1 THEN dbo.fnza_Get_ValorCargoImpConceptoFacUnificado(NULL,F.id,'''+@ds_conceptosunificados+''',0,0,1'+',F.Documento) 
 										WHEN F.in_TipoItem=3 THEN dbo.fnza_Get_ValorCargoImpConceptoFacSrvUnificado(NULL,F.id,'''+@ds_conceptosunificados+''',0,0,1'+',F.id_item) 
 										ELSE 0 END' + CHAR(13) 
@@ -359,15 +351,11 @@ BEGIN
 		Select  @ds_conceptosUnificadosCot =',TarifaUnificada=0,IVAUnificado=0,OtroUnificado=0'
 		Set @ds_conceptosUnificadosAux = Case When ISNULL(@ds_conceptosunificados,'') <> '' THEN ',TarifaUnificada,IVAUnificado,OtroUnificado' ELSE '' END
 		
-		
 		Select @ds_conceptosUnificadosAuxUSD = @ds_conceptosUnificadosAuxUSD + ','+Codigo + '_USD=[' + Codigo + ']/ Case When am_tcambio <> 1 Then am_tcambio Else Tasa End' +char(13)
 		From(
 			Select codigo from dbo.fnSplit_table(@ds_conceptosUnificadosAux,',','',0) Where codigo<>''
 		) As c
 	END
-	--FROM @Tableconceptosunificados
-	--------------------------------------------------------------------------------------------------
-	
 	
 	---- Conceptos adicionales
 	SET @ds_conceptosAdicionalFac=''
@@ -390,32 +378,32 @@ BEGIN
 
 	--Remision	
 	SELECT @ds_conceptosAdicionalRem=@ds_conceptosAdicionalRem+
-									CASE WHEN ISNULL(cd_CargoDesc,'')<>'' or ISNULL(cd_ImpRet,'')<>'' THEN
+									CASE WHEN ISNULL(cd_CargoDesc,'')<>'' or ISNULL(cd_ImpRet,'')<>'' THEN 
 										',[' + cd_ConceptoFac+CASE WHEN ISNULL(cd_CargoDesc,'')<>'' THEN '_'+cd_CargoDesc+']' 
 											WHEN ISNULL(cd_ImpRet,'')<>'' THEN '_'+cd_ImpRet +']'
 											ELSE '' END + '= CASE	WHEN F.in_TipoItem=1 THEN dbo.fnza_Get_ValorCargoImpConceptoFac(NULL,F.id,NULL,'''+cd_ConceptoFac+''','+ISNULL(CONVERT(VARCHAR(18),id_CargoDesc),'NULL')+','+ISNULL(CONVERT(VARCHAR(18),id_ImpRet),'NULL')+',F.Documento) 
-															WHEN F.in_TipoItem=3 THEN dbo.fnza_Get_ValorCargoImpConceptoFacSrv(NULL,F.id,NULL,'''+cd_ConceptoFac+''','+ISNULL(CONVERT(VARCHAR(18),id_CargoDesc),'NULL')+','+ISNULL(CONVERT(VARCHAR(18),id_ImpRet),'NULL')+',NULL,F.id_item)
+															WHEN F.in_TipoItem=3 THEN dbo.fnza_Get_ValorCargoImpConceptoFacSrv(NULL,F.id,NULL,'''+cd_ConceptoFac+''','+ISNULL(CONVERT(VARCHAR(18),id_CargoDesc),'NULL')+','+ISNULL(CONVERT(VARCHAR(18),id_ImpRet),'NULL')+',NULL,F.id_item) 
 															ELSE 0 END' + CHAR(13)	
 									ELSE '' END																							 	 																							 							
 	FROM @TableconceptosAdicional
 
 	--Cotizacion
 	SELECT @ds_conceptosAdicionalCot=@ds_conceptosAdicionalCot+
-									CASE WHEN ISNULL(cd_CargoDesc,'')<>'' or ISNULL(cd_ImpRet,'')<>'' THEN
-										',[' + cd_ConceptoFac+CASE WHEN ISNULL(cd_CargoDesc,'')<>'' THEN '_'+cd_CargoDesc +']'
+									CASE WHEN ISNULL(cd_CargoDesc,'')<>'' or ISNULL(cd_ImpRet,'')<>'' THEN 
+										',[' + cd_ConceptoFac+CASE WHEN ISNULL(cd_CargoDesc,'')<>'' THEN '_'+cd_CargoDesc +']' 
 											WHEN ISNULL(cd_ImpRet,'')<>'' THEN '_'+cd_ImpRet +']'
 											ELSE '' END + '= CASE WHEN CS.id_TiposConceptFac=2 THEN dbo.fnza_Get_ValorCargoImpConceptoCot(CT.id,NULL,'''+cd_ConceptoFac+''','+ISNULL(CONVERT(VARCHAR(18),id_CargoDesc),'NULL')+','+ISNULL(CONVERT(VARCHAR(18),id_ImpRet),'NULL')+',CS.cd_tiquete) ELSE 0 END' + CHAR(13)																								 	 																							 							
 									ELSE '' END
 	FROM @TableconceptosAdicional
 
 	SELECT @ds_conceptosAdicionalAux=@ds_conceptosAdicionalAux+
-																CASE WHEN ISNULL(cd_CargoDesc,'')<>'' or ISNULL(cd_ImpRet,'')<>'' THEN
+																CASE WHEN ISNULL(cd_CargoDesc,'')<>'' or ISNULL(cd_ImpRet,'')<>'' THEN 
 																',[' + cd_ConceptoFac+CASE WHEN ISNULL(cd_CargoDesc,'')<>'' THEN '_'+cd_CargoDesc WHEN ISNULL(cd_ImpRet,'')<>'' THEN '_'+cd_ImpRet ELSE '' END+']'  + CHAR(13)																							 							
 																ELSE '' END
 	FROM @TableconceptosAdicional
 	
 	SELECT @ds_conceptosAdicionalAux2=@ds_conceptosAdicionalAux2+		
-																CASE WHEN ISNULL(cd_CargoDesc,'')<>'' or ISNULL(cd_ImpRet,'')<>'' THEN
+																CASE WHEN ISNULL(cd_CargoDesc,'')<>'' or ISNULL(cd_ImpRet,'')<>'' THEN 
 																'+[' + cd_ConceptoFac+CASE WHEN ISNULL(cd_CargoDesc,'')<>'' THEN '_'+cd_CargoDesc WHEN ISNULL(cd_ImpRet,'')<>'' THEN '_'+cd_ImpRet ELSE '' END	+']' 
 																ELSE '' END
 																
@@ -427,8 +415,6 @@ BEGIN
 	Where codigo<>'') As c
 
 	Select @ds_conceptosAdicionalAux2USD = Replace(@ds_conceptosAdicionalAux2,']','_USD]')
-	
-	--select @ds_conceptosAdicionalFac as '@ds_conceptosAdicionalFac'
 
 	IF @ds_Categorias <> ''
 	BEGIN
@@ -444,6 +430,50 @@ BEGIN
 		ds_categorias  = ',Categoria_'+ REPLACE(cd_Categoria,' ','')+'=CASE WHEN Tipo=''CT'' THEN dbo.fnza_Get_CotizacionItemsCategorias(id,iditems,'+CONVERT(VARCHAR(18),id_Categoria)+') WHEN Tipo=''FA'' THEN dbo.fnza_Get_FacturaItemsCategorias(id,null,iditems,'+CONVERT(VARCHAR(18),id_Categoria)+') ELSE dbo.fnza_Get_FacturaItemsCategorias(NULL,id,iditems,'+CONVERT(VARCHAR(18),id_Categoria)+') END ' + char(13)
 	FROM @TableCategorias
 	) AS C
+
+	-- Filtros de Ruta / Itinerario generados dinámicamente
+	DECLARE @FiltroRutaSQL VARCHAR(MAX) = ''
+	
+	-- 1. Ciudad Origen (Primera ciudad antes del primer '/')
+	IF @cd_CiudadOrigen IS NOT NULL
+	BEGIN
+		SET @FiltroRutaSQL = @FiltroRutaSQL + '
+		AND (
+			(F.Servicio IS NOT NULL AND F.Servicio <> '''' AND UPPER(
+				CASE WHEN CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) > 0 
+					 THEN SUBSTRING(LTRIM(RTRIM(F.Servicio)), 1, CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) - 1)
+					 ELSE LTRIM(RTRIM(F.Servicio)) END
+			) IN (SELECT UPPER(LTRIM(RTRIM(codigo))) FROM dbo.fnSplit(''' + @cd_CiudadOrigen + ''', '','', 0, 1)))
+		)'
+	END
+
+	-- 2. Segunda Ciudad (Ciudad entre el primer y segundo '/')
+	IF @cd_SegundaCiudad IS NOT NULL
+	BEGIN
+		SET @FiltroRutaSQL = @FiltroRutaSQL + '
+		AND (
+			(F.Servicio IS NOT NULL AND F.Servicio <> '''' AND UPPER(
+				CASE WHEN CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) > 0 
+					 THEN CASE WHEN CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio)), CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) + 1) > 0
+							   THEN SUBSTRING(LTRIM(RTRIM(F.Servicio)), CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) + 1, CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio)), CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) + 1) - CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) - 1)
+							   ELSE SUBSTRING(LTRIM(RTRIM(F.Servicio)), CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) + 1, 50) END
+					 ELSE '''' END
+			) IN (SELECT UPPER(LTRIM(RTRIM(codigo))) FROM dbo.fnSplit(''' + @cd_SegundaCiudad + ''', '','', 0, 1)))
+		)'
+	END
+
+	-- 3. Ciudad en cualquier parte del Itinerario
+	IF @cd_CiudadItinerario IS NOT NULL
+	BEGIN
+		SET @FiltroRutaSQL = @FiltroRutaSQL + '
+		AND (
+			(F.Servicio IS NOT NULL AND F.Servicio <> '''' AND EXISTS (
+				SELECT 1 FROM dbo.fnSplit(''' + @cd_CiudadItinerario + ''', '','', 0, 1) s
+				WHERE ''/'' + UPPER(LTRIM(RTRIM(F.Servicio))) + ''/'' LIKE ''%/'' + UPPER(LTRIM(RTRIM(s.codigo))) + ''/%''
+			))
+		)'
+	END
+
 	--------------------------------------------------------------------------------------------------
 	Set @SelectData ='
 	SELECT 
@@ -565,7 +595,6 @@ BEGIN
 		' + @ds_conceptosUnificadosAuxUSD + '
 		' + @ds_Categorias + '
 		,cd_tercero_codigo, ds_tercero_nombre, am_blcomision, in_consecutivounicodocumento AS id_consecutivounicodocumento
-		--,FechaUltimoPago, ValorPagado, ValorPagadoMoneda, Saldo
 		,am_blTarifa, am_OtrosblTarifa
 		,am_blTarifaUSD = am_blTarifa / Case When am_tcambio <> 1 Then am_tcambio Else Tasa End
 		,am_OtrosblTarifaUSD = (am_OtrosblTarifa-am_blcomision) / Case When am_tcambio <> 1 Then am_tcambio Else Tasa End
@@ -582,10 +611,10 @@ BEGIN
 		,CantidadPax
 		,BaseCom
 		,PorcentajeCom
-		--,id_usuario
 		,Usuario
 		,Pais_Cliente
 		,DivPol_cliente
+		,Especialista
 		,FAREBASIS
 	FROM(	 
 		SELECT 
@@ -699,7 +728,6 @@ BEGIN
 														 ' 
 			  ELSE '' END+'
 			  ,F.cd_Consecutivo_VariablesAdicionales
-			  --,FechaUltimoPago, ValorPagado, ValorPagadoMoneda, Saldo
 			  ,am_blTarifa, am_OtrosblTarifa
 			  ,cd_NumeFac,Proveedor_cd_tercero_codigo=TPr.idtercero, Proveedor_ds_tercero_nombre=TPr.NOMBRETER
 			  ,TipoProveedorServicio	,CodProveedorServicio	,NombreProveedorServicio
@@ -719,12 +747,12 @@ BEGIN
 			 ,CantidadPax = F.in_cantpax
 			 ,BaseCom = F.am_basecomisionable
 			 ,PorcentajeCom = F.am_porcomision
-			 --,id_usuario = F.id_usuario
 			 ,Usuario = U.Nombre
 			 ,Pais_Cliente = PC.Descripcion
 			 ,DivPol_cliente = DP.Desdivpolitica
-			 ,FAREBASIS = rtrim(convert(VARCHAR(20),dbo.fnza_Get_TiqueteFareBasis(tkt.id))) 
-		FROM dbo.fnza_FacturacionMejorada('
+			 ,Especialista = ES.ds_nombre
+			 ,FAREBASIS = rtrim(convert(VARCHAR(20),dbo.fnza_Get_TiqueteFareBasis(tkt.id)))
+			 FROM dbo.fnza_FacturacionMejorada('
 			+convert(varchar,@in_nacionalidad)+','
 			+convert(varchar,@Descuento)+','
 			+convert(varchar,@Anulacion)+','
@@ -759,9 +787,9 @@ BEGIN
 			LEFT JOIN Ciudades Ci ON Ci.ds_nombre = f.Destino
 			LEFT JOIN Paises Pa ON Pa.id = Ci.id_paises
 			LEFT JOIN Usuario U ON U.id = f.id_usuario
+			LEFT JOIN Especialista Es ON Es.id = f.id_Especialista
 			LEFT JOIN dbo.tiquetes tkt WITH(NOLOCK) ON tkt.cd_tiquete = F.Documento AND tkt.id_fac_factura = F.id
 			OUTER APPLY dbo.fnza_TotalServicio_TiqueteTable(F.id,NULL,F.Documento,'+CASE WHEN ISNULL(@ds_feeocultos ,'')='' THEN 'NULL' ELSE ''''+@ds_feeocultos +'''' END+') AS srv
-			--OUTER APPLY dbo.fnza_RCSaldoDocumentoTable (Fuente+Numero) AS Pagos
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'OUTER APPLY dbo.fnza_TaoCemScr_TiqueteTable(F.id,NULL,F.Documento) AS TCS' ELSE '' END+'
 		WHERE
 			(CL.GrEmpresarial IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@Grupo_Empresarial,'')='' THEN 'NULL' ELSE ''''+@Grupo_Empresarial+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@Grupo_Empresarial,'')='' THEN 'NULL' ELSE ''''+@Grupo_Empresarial+'''' END+' IS NULL)
@@ -769,10 +797,11 @@ BEGIN
 			AND (CL.TipoCliente IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@cd_tipoCliente,'')='' THEN 'NULL' ELSE ''''+@cd_tipoCliente+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@cd_tipoCliente,'')='' THEN 'NULL' ELSE ''''+@cd_tipoCliente+'''' END+' IS NULL)
 			AND (CL.SEGMENTO IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@id_Segmento,'')='' THEN 'NULL' ELSE ''''+@id_Segmento+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@id_Segmento,'')='' THEN 'NULL' ELSE ''''+@id_Segmento+'''' END+' IS NULL)
 			AND (F.Id_TipoVenta IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@Id_TiposVenta,'')='' THEN 'NULL' ELSE ''''+@Id_TiposVenta+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@Id_TiposVenta,'')='' THEN 'NULL' ELSE ''''+@Id_TiposVenta+'''' END+' IS NULL)
-			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosAdicional ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosAdicional +'''' END+','','',0,1)) /*OR Tkt.id IS NULL*/)
-			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosunificados ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosunificados +'''' END+','','',0,1)) /*OR Tkt.id IS NULL*/)
+			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosAdicional ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosAdicional +'''' END+','','',0,1)))
+			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosunificados ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosunificados +'''' END+','','',0,1)))
 			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_feeocultos ,'')='' THEN 'NULL' ELSE ''''+@ds_feeocultos +'''' END+','','',0,1)) OR tkt.id IS NULL)
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'AND (C.cd_codigo NOT IN(''CAN'',''CAI'',''CEM'') OR tkt.id IS NULL)' ELSE '' END+'
+			'+ @FiltroRutaSQL +'
 
 		UNION ALL
 		
@@ -792,7 +821,7 @@ BEGIN
 			,V.telefono as ''Tel_vendedor''  
 			,V.Direccion as ''Dir_vendedor''  
 			,V.Email as ''Correo_vendedor'' 
-			,Case
+			,Case 
 				When id_ConceptoFacturacion IN (1,2) Then ''Tiquete''
 				When id_ConceptoFacturacion IN (4,5) Then ''TAO''
 				Else ''Servicio''
@@ -886,7 +915,6 @@ BEGIN
 														 ' 
 			  ELSE '' END+'
 			 ,F.cd_Consecutivo_VariablesAdicionales
-			 --,FechaUltimoPago, ValorPagado, ValorPagadoMoneda, Saldo
 			 ,am_blTarifa, am_OtrosblTarifa
 			 ,cd_NumeFac,Proveedor_cd_tercero_codigo=TPr.idtercero, Proveedor_ds_tercero_nombre=TPr.NOMBRETER
 			 ,TipoProveedorServicio	,CodProveedorServicio	,NombreProveedorServicio
@@ -906,10 +934,10 @@ BEGIN
 			 ,CantidadPax = F.in_cantpax
 			 ,BaseCom = F.am_basecomisionable
 			 ,PorcentajeCom = F.am_porcomision 
-			 --,id_usuario = F.id_usuario
 			 ,Usuario = U.Nombre
 			 ,Pais_Cliente = PC.Descripcion
 			 ,DivPol_cliente = DP.Desdivpolitica
+			 ,Especialista = ES.ds_nombre
 			 ,FAREBASIS = convert(varchar(20),dbo.fnza_Get_TiqueteFareBasis(tkt.id))
 		FROM dbo.fnza_RemisionMejorada('
 			+convert(varchar,@in_nacionalidad)+','
@@ -947,9 +975,9 @@ BEGIN
 			LEFT JOIN Ciudades Ci ON Ci.ds_nombre = f.Destino
 			LEFT JOIN Paises Pa ON Pa.id = Ci.id_paises
 			LEFT JOIN Usuario U ON U.id = f.id_usuario
+			LEFT JOIN Especialista Es ON Es.id = f.id_Especialista
 			LEFT JOIN dbo.tiquetes tkt WITH(NOLOCK) ON tkt.cd_tiquete = F.Documento AND tkt.id_fac_remision = F.id
 			OUTER APPLY dbo.fnza_TotalServicio_TiqueteTable(NULL,F.id,F.Documento,'+CASE WHEN ISNULL(@ds_feeocultos ,'')='' THEN 'NULL' ELSE ''''+@ds_feeocultos +'''' END+') AS srv
-			--OUTER APPLY dbo.fnza_RCSaldoDocumentoTable (Fuente+Numero) AS Pagos
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'OUTER APPLY dbo.fnza_TaoCemScr_TiqueteTable(NULL,F.id,F.Documento) AS TCS' ELSE '' END+'
 		WHERE
 			(CL.GrEmpresarial IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@Grupo_Empresarial,'')='' THEN 'NULL' ELSE ''''+@Grupo_Empresarial+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@Grupo_Empresarial,'')='' THEN 'NULL' ELSE ''''+@Grupo_Empresarial+'''' END+' IS NULL)
@@ -957,15 +985,15 @@ BEGIN
 			AND (CL.TipoCliente IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@cd_tipoCliente,'')='' THEN 'NULL' ELSE ''''+@cd_tipoCliente+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@cd_tipoCliente,'')='' THEN 'NULL' ELSE ''''+@cd_tipoCliente+'''' END+' IS NULL)
 			AND (CL.SEGMENTO IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@id_Segmento,'')='' THEN 'NULL' ELSE ''''+@id_Segmento+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@id_Segmento,'')='' THEN 'NULL' ELSE ''''+@id_Segmento+'''' END+' IS NULL)
 			AND (F.Id_TipoVenta IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@Id_TiposVenta,'')='' THEN 'NULL' ELSE ''''+@Id_TiposVenta+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@Id_TiposVenta,'')='' THEN 'NULL' ELSE ''''+@Id_TiposVenta+'''' END+' IS NULL)
-			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosAdicional ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosAdicional +'''' END+','','',0,1)) /*OR Tkt.id IS NULL*/)
-			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosunificados ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosunificados +'''' END+','','',0,1)) /*OR Tkt.id IS NULL*/)
+			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosAdicional ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosAdicional +'''' END+','','',0,1)))
+			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosunificados ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosunificados +'''' END+','','',0,1)))
 			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_feeocultos ,'')='' THEN 'NULL' ELSE ''''+@ds_feeocultos +'''' END+','','',0,1)) OR tkt.id IS NULL)
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'AND (C.cd_codigo NOT IN(''CAN'',''CAI'',''CEM'') OR tkt.id IS NULL)' ELSE '' END+'
+			'+ @FiltroRutaSQL +'
 		
 		UNION ALL
 
 		SELECT
-
 			Tipo=''CT''
 			,CT.id
 			,Fuente=''''
@@ -1059,7 +1087,6 @@ BEGIN
 														 ' 
 			  ELSE '' END+'
 			  ,CS.cd_Consecutivo_VariablesAdicionales
-			  --,FechaUltimoPago = NULL, ValorPagado = 0, ValorPagadoMoneda = 0, Saldo = 0
 			  ,am_blTarifa=0, am_OtrosblTarifa=0
 			  ,cd_NumeFac,Proveedor_cd_tercero_codigo=TPr.idtercero, Proveedor_ds_tercero_nombre=TPr.NOMBRETER
 			  ,TipoProveedorServicio	='''',CodProveedorServicio	='''',NombreProveedorServicio=''''
@@ -1077,10 +1104,10 @@ BEGIN
 			  ,CantidadPax = CS.in_cantpax
 			  ,BaseCom = CS.am_basecomisionable
 			  ,PorcentajeCom = CS.am_porcomision 
-			  --,id_usuario = CT.id_usuario
 			  ,Usuario = U.Nombre
 			  ,Pais_Cliente = PC.Descripcion
 			  ,DivPol_cliente = DP.Desdivpolitica
+			  ,Especialista = ES.ds_nombre
 			  ,FAREBASIS = ''1''
 			FROM dbo.Cotizacion CT 
 				 INNER JOIN dbo.CotizacionServicios CS WITH(NOLOCK) ON CS.id_Cotizacion= CT.id
@@ -1104,12 +1131,10 @@ BEGIN
 				 LEFT JOIN Ciudades Ci ON Ci.ds_nombre = CS.ds_destino
 				 LEFT JOIN Paises Pa ON Pa.id = Ci.id_paises
 				 LEFT JOIN Usuario U ON U.id = CT.id_usuario
-
+				LEFT JOIN Especialista Es ON Es.id = CT.id_Especialista
 			 WHERE CT.dt_fechacont >= '''+replace(convert(varchar(10),@fecha_inicio,111),'/','')+ '''
 				   AND CT.dt_fechacont <= '''+replace(convert(varchar(10),@fecha_fin,111),'/','')+'''
 				   AND CS.id_TiposConceptFac=2
-				   --AND CS.id_fac_factura IS NULL
-				   --AND CS.id_fac_remision IS NULL
 				   AND (CS.bl_anulado = 0 OR CS.bl_anulado=' + convert(varchar,@Anulacion) + ')
 				   AND (CL.GrEmpresarial IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@Grupo_Empresarial,'')='' THEN 'NULL' ELSE ''''+@Grupo_Empresarial+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@Grupo_Empresarial,'')='' THEN 'NULL' ELSE ''''+@Grupo_Empresarial+'''' END+' IS NULL)
 				   AND (CL.IDTERCERO IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@cd_Tercero,'')='' THEN 'NULL' ELSE ''''+@cd_Tercero+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@cd_Tercero,'')='' THEN 'NULL' ELSE ''''+@cd_Tercero+'''' END+' IS NULL)
@@ -1122,8 +1147,34 @@ BEGIN
 				   AND (CS.cd_proveedores IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@cd_proveedor ,'')='' THEN 'NULL' ELSE ''''+@cd_proveedor +'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@cd_proveedor ,'')='' THEN 'NULL' ELSE ''''+@cd_proveedor +'''' END+' IS NULL)
 				   AND (E.Id IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@Id_EtapasCotizacion ,'')='' THEN 'NULL' ELSE ''''+@Id_EtapasCotizacion +'''' END+','','',0,1)))
 				   AND (cf.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosAdicional ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosAdicional +'''' END+','','',0,1)) OR CS.cd_tiquete IS NULL)
-				   AND (CF.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosunificados ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosunificados +'''' END+','','',0,1)) /*OR Tkt.id IS NULL*/)
+				   AND (CF.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosunificados ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosunificados +'''' END+','','',0,1)))
 				   AND (cf.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_feeocultos ,'')='' THEN 'NULL' ELSE ''''+@ds_feeocultos +'''' END+','','',0,1)) OR CS.cd_tiquete IS NULL)
+				   -- Filtros de ruta sobre Cotizaciones (cs.ds_servicio)
+				   ' + CASE WHEN @cd_CiudadOrigen IS NOT NULL THEN '
+				   AND (
+						cs.ds_servicio IS NOT NULL AND cs.ds_servicio <> '''' AND UPPER(
+							CASE WHEN CHARINDEX(''/'', LTRIM(RTRIM(cs.ds_servicio))) > 0 
+								 THEN SUBSTRING(LTRIM(RTRIM(cs.ds_servicio)), 1, CHARINDEX(''/'', LTRIM(RTRIM(cs.ds_servicio))) - 1)
+								 ELSE LTRIM(RTRIM(cs.ds_servicio)) END
+						) IN (SELECT UPPER(LTRIM(RTRIM(codigo))) FROM dbo.fnSplit(''' + @cd_CiudadOrigen + ''', '','', 0, 1))
+				   )' ELSE '' END + '
+				   ' + CASE WHEN @cd_SegundaCiudad IS NOT NULL THEN '
+				   AND (
+						cs.ds_servicio IS NOT NULL AND cs.ds_servicio <> '''' AND UPPER(
+							CASE WHEN CHARINDEX(''/'', LTRIM(RTRIM(cs.ds_servicio))) > 0 
+								 THEN CASE WHEN CHARINDEX(''/'', LTRIM(RTRIM(cs.ds_servicio)), CHARINDEX(''/'', LTRIM(RTRIM(cs.ds_servicio))) + 1) > 0
+										   THEN SUBSTRING(LTRIM(RTRIM(cs.ds_servicio)), CHARINDEX(''/'', LTRIM(RTRIM(cs.ds_servicio))) + 1, CHARINDEX(''/'', LTRIM(RTRIM(cs.ds_servicio)), CHARINDEX(''/'', LTRIM(RTRIM(cs.ds_servicio))) + 1) - CHARINDEX(''/'', LTRIM(RTRIM(cs.ds_servicio))) - 1)
+										   ELSE SUBSTRING(LTRIM(RTRIM(cs.ds_servicio)), CHARINDEX(''/'', LTRIM(RTRIM(cs.ds_servicio))) + 1, 50) END
+								 ELSE '''' END
+						) IN (SELECT UPPER(LTRIM(RTRIM(codigo))) FROM dbo.fnSplit(''' + @cd_SegundaCiudad + ''', '','', 0, 1))
+				   )' ELSE '' END + '
+				   ' + CASE WHEN @cd_CiudadItinerario IS NOT NULL THEN '
+				   AND (
+						cs.ds_servicio IS NOT NULL AND cs.ds_servicio <> '''' AND EXISTS (
+							SELECT 1 FROM dbo.fnSplit(''' + @cd_CiudadItinerario + ''', '','', 0, 1) s
+							WHERE ''/'' + UPPER(LTRIM(RTRIM(cs.ds_servicio))) + ''/'' LIKE ''%/'' + UPPER(LTRIM(RTRIM(s.codigo))) + ''/%''
+						)
+				   )' ELSE '' END + '
 			
 			UNION ALL
 
@@ -1238,7 +1289,6 @@ BEGIN
 														 ' 
 			  ELSE '' END+'
 			  ,F.cd_Consecutivo_VariablesAdicionales
-			  --,FechaUltimoPago = NULL, ValorPagado = 0, ValorPagadoMoneda = 0, Saldo = 0
 			  ,am_blTarifa=0, am_OtrosblTarifa=0
 			  ,cd_NumeFac='''',Proveedor_cd_tercero_codigo='''', Proveedor_ds_tercero_nombre=''''
 			  ,TipoProveedorServicio	='''',CodProveedorServicio	='''',NombreProveedorServicio=''''
@@ -1254,10 +1304,10 @@ BEGIN
 			  ,CantidadPax = F.in_cantpax
 			  ,BaseCom = F.am_basecomisionable
 			  ,PorcentajeCom = F.am_porcomision 
-			  --,id_usuario = F.id_usuario
 			  ,Usuario = U.Nombre
 			  ,Pais_Cliente = PC.Descripcion
 			  ,DivPol_cliente = DP.Desdivpolitica
+			  ,Especialista = ES.ds_nombre
 			  ,FAREBASIS = convert(varchar,dbo.fnza_Get_TiqueteFareBasis(tkt.id))
 		FROM dbo.fnza_NotaCreditoParcial('
 			+convert(varchar,@in_nacionalidad)+','
@@ -1293,6 +1343,7 @@ BEGIN
 			LEFT JOIN Ciudades Ci ON Ci.ds_nombre = F.ds_destino
 			LEFT JOIN Paises Pa ON Pa.id = Ci.id_paises
 			LEFT JOIN Usuario U ON U.id = f.id_usuario
+			LEFT JOIN Especialista Es ON Es.id = f.id_Especialista
 			LEFT JOIN dbo.tiquetes tkt WITH(NOLOCK) ON tkt.cd_tiquete = F.Documento 
 			OUTER APPLY dbo.fnza_TotalServicio_TiqueteNotaCreditoParcialTable(F.id,F.Documento,'+CASE WHEN ISNULL(@ds_feeocultos ,'')='' THEN 'NULL' ELSE ''''+@ds_feeocultos +'''' END+') AS srv
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'OUTER APPLY dbo.fnza_TaoCemScr_TiqueteNotaCreditoParcialTable(F.id,F.Documento) AS TCS' ELSE '' END+'
@@ -1302,10 +1353,11 @@ BEGIN
 			AND (CL.TipoCliente IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@cd_tipoCliente,'')='' THEN 'NULL' ELSE ''''+@cd_tipoCliente+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@cd_tipoCliente,'')='' THEN 'NULL' ELSE ''''+@cd_tipoCliente+'''' END+' IS NULL)
 			AND (CL.SEGMENTO IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@id_Segmento,'')='' THEN 'NULL' ELSE ''''+@id_Segmento+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@id_Segmento,'')='' THEN 'NULL' ELSE ''''+@id_Segmento+'''' END+' IS NULL)
 			AND (F.Id_TipoVenta IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@Id_TiposVenta,'')='' THEN 'NULL' ELSE ''''+@Id_TiposVenta+'''' END+','','',0,1)) OR '+CASE WHEN ISNULL(@Id_TiposVenta,'')='' THEN 'NULL' ELSE ''''+@Id_TiposVenta+'''' END+' IS NULL)
-			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosAdicional ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosAdicional +'''' END+','','',0,1)) /*OR Tkt.id IS NULL*/)
-			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosunificados ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosunificados +'''' END+','','',0,1)) /*OR Tkt.id IS NULL*/)
+			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosAdicional ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosAdicional +'''' END+','','',0,1)))
+			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_conceptosunificados ,'')='' THEN 'NULL' ELSE ''''+@ds_conceptosunificados +'''' END+','','',0,1)))
 			AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('+CASE WHEN ISNULL(@ds_feeocultos ,'')='' THEN 'NULL' ELSE ''''+@ds_feeocultos +'''' END+','','',0,1)) OR tkt.id IS NULL)
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'AND (C.cd_codigo NOT IN(''CAN'',''CAI'',''CEM'') OR tkt.id IS NULL)' ELSE '' END+'
+			'+ @FiltroRutaSQL +'
 
 	) AS Facturacion
 	GROUP BY
@@ -1344,7 +1396,6 @@ BEGIN
 		,Descuentos
 		,Records
 		,tarifa_neta
-		
 		,dt_salida
 		,dt_llegada
 		,Revisado
@@ -1398,7 +1449,6 @@ BEGIN
 												     ' 
 		  ELSE '' END+'
 		,cd_Consecutivo_VariablesAdicionales
-		--,FechaUltimoPago, ValorPagado , ValorPagadoMoneda , Saldo
 		,am_blTarifa, am_OtrosblTarifa
 		,cd_NumeFac
 		,Proveedor_cd_tercero_codigo
@@ -1416,22 +1466,19 @@ BEGIN
 		,CantidadPax
 		,BaseCom 
         ,PorcentajeCom 
-		--,id_usuario
 		,Usuario 
 		,Pais_Cliente 
 		,DivPol_cliente
+		,Especialista 
 		,FAREBASIS
-
 		ORDER BY  
 		factura
 		,Documento
 		,Servicio
 		,Clase
 		,Pasajero
-		
 	'
-	--select @SelectData
 	Exec (@SelectData)
 	
 END
-
+GO

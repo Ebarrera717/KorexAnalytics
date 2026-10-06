@@ -1,4 +1,4 @@
-USE [Zeusagencias_23]
+USE [ZeusAgencias_23]
 GO
 /****** Object:  StoredProcedure [dbo].[VentasDetalladasPorConceptos_FiltroRutas] ******/
 SET ANSI_NULLS ON
@@ -6,11 +6,11 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
-IF OBJECT_ID('[dbo].[VentasDetalladasPorConceptos_FiltroRutas]', 'P') IS NOT NULL
+IF OBJECT_ID('[dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]', 'P') IS NOT NULL
     DROP PROCEDURE [dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]
 GO
 
-CREATE PROCEDURE [dbo].[VentasDetalladasPorConceptos_FiltroRutas]
+CREATE PROCEDURE [dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]
 		@Nacionalidad 				VARCHAR(25)		= NULL	
 		,@Remision 					VARCHAR(25)		= NULL	
 		,@RemFacturadas				VARCHAR(25)		= NULL	
@@ -82,6 +82,7 @@ BEGIN
 	Declare @ds_conceptosUnificadosAux2 VARCHAR(max)
 
 	Declare @ds_feeocultos VARCHAR(MAX)
+	Declare @FAREBASIS VARCHAR(MAX)
 	Declare @TableCategorias Table(Id INT IDENTITY, id_Categoria INT, cd_Categoria VARCHAR(60))
 	
 	IF @NoMostrarFeeOcultos='SI'
@@ -614,6 +615,7 @@ BEGIN
 		,Pais_Cliente
 		,DivPol_cliente
 		,Especialista
+		,FAREBASIS
 	FROM(	 
 		SELECT 
 			F.Tipo
@@ -749,6 +751,7 @@ BEGIN
 			 ,Pais_Cliente = PC.Descripcion
 			 ,DivPol_cliente = DP.Desdivpolitica
 			 ,Especialista = ES.ds_nombre
+			 ,FAREBASIS = rtrim(convert(VARCHAR(20),dbo.fnza_Get_TiqueteFareBasis(tkt.id)))
 			 FROM dbo.fnza_FacturacionMejorada('
 			+convert(varchar,@in_nacionalidad)+','
 			+convert(varchar,@Descuento)+','
@@ -935,6 +938,7 @@ BEGIN
 			 ,Pais_Cliente = PC.Descripcion
 			 ,DivPol_cliente = DP.Desdivpolitica
 			 ,Especialista = ES.ds_nombre
+			 ,FAREBASIS = convert(varchar(20),dbo.fnza_Get_TiqueteFareBasis(tkt.id))
 		FROM dbo.fnza_RemisionMejorada('
 			+convert(varchar,@in_nacionalidad)+','
 			+convert(varchar,@Descuento)+','
@@ -1104,6 +1108,7 @@ BEGIN
 			  ,Pais_Cliente = PC.Descripcion
 			  ,DivPol_cliente = DP.Desdivpolitica
 			  ,Especialista = ES.ds_nombre
+			  ,FAREBASIS = ''1''
 			FROM dbo.Cotizacion CT 
 				 INNER JOIN dbo.CotizacionServicios CS WITH(NOLOCK) ON CS.id_Cotizacion= CT.id
 				 INNER JOIN dbo.Etapas E On e.id=ct.id_etapa
@@ -1303,6 +1308,7 @@ BEGIN
 			  ,Pais_Cliente = PC.Descripcion
 			  ,DivPol_cliente = DP.Desdivpolitica
 			  ,Especialista = ES.ds_nombre
+			  ,FAREBASIS = convert(varchar,dbo.fnza_Get_TiqueteFareBasis(tkt.id))
 		FROM dbo.fnza_NotaCreditoParcial('
 			+convert(varchar,@in_nacionalidad)+','
 			+convert(varchar,@Descuento)+','
@@ -1464,6 +1470,7 @@ BEGIN
 		,Pais_Cliente 
 		,DivPol_cliente
 		,Especialista 
+		,FAREBASIS
 		ORDER BY  
 		factura
 		,Documento
