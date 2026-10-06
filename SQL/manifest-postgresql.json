@@ -1,7 +1,7 @@
 {
   "engine": "POSTGRESQL",
   "version": "1.0.0",
-  "generatedAt": "2026-10-06T17:47:13.066Z",
+  "generatedAt": "2026-10-06T18:20:25.797Z",
   "expectedTablesCount": 10,
   "expectedProceduresCount": 11,
   "files": [
@@ -17,8 +17,8 @@
     },
     {
       "file": "03_InitialData.sql",
-      "sha256": "f4707edda32d230844fa4c2757654a741f220bac9c1d75f0dd60010e5ad01904",
-      "bytes": 2536
+      "sha256": "7f30ca8e40a3e3b39442ee2848882c1e95cbcd6c09009a6ce25b727dc154150e",
+      "bytes": 2934
     },
     {
       "file": "04_StoredProcedures.sql",
@@ -51,5 +51,5 @@
     "spKAX_UserGuardar",
     "spKAX_RoleListar"
   ],
-  "masterSha256": "38850e8431920d060321d565621c49bb3948c3506df101d706a1e973c089ce17"
+  "masterSha256": "87f7e04e4e60c14221df86a681db8647508b0698a0918eb6c211aca3051092c7"
 }

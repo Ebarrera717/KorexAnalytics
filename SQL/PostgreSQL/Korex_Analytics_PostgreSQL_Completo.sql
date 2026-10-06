@@ -2,7 +2,7 @@
 ============================================================================
 PROYECTO: KOREX ANALYTICS
 RELEASE: POSTGRESQL (PL/pgSQL) COMPLETO Y AUTÓNOMO
-GENERADO: 2026-10-06T17:47:13.066Z
+GENERADO: 2026-10-06T18:20:25.797Z
 ============================================================================
 */
 
@@ -217,6 +217,16 @@ SELECT
     (SELECT "id" FROM public."KAX_Role" WHERE "name" = 'SUPER_ADMIN' LIMIT 1),
     TRUE
 WHERE NOT EXISTS (SELECT 1 FROM public."KAX_User" WHERE "email" = 'admin@korexanalytics.com');
+
+INSERT INTO public."KAX_User" ("name", "email", "passwordHash", "roleId", "isActive")
+SELECT 
+    'Eduardo Barrera',
+    'ebarrera@zagencias.com',
+    '$2b$10$3iwWpMl/ZOeY7Sw.U3p1/uu3ckrGHrUCl8UQvEP/0QUqHMjeHWnfa',
+    (SELECT "id" FROM public."KAX_Role" WHERE "name" = 'SUPER_ADMIN' LIMIT 1),
+    TRUE
+WHERE NOT EXISTS (SELECT 1 FROM public."KAX_User" WHERE "email" = 'ebarrera@zagencias.com');
+
 
 -- 3. Sembrado de Procedimientos Analíticos de Catálogo
 INSERT INTO public."KAX_ExecutionProcedure" ("name", "spName", "description", "category", "parametersConfig", "isActive")

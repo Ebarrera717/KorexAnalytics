@@ -1,7 +1,7 @@
 {
   "engine": "SQLSERVER",
   "version": "1.0.0",
-  "generatedAt": "2026-10-06T17:47:13.000Z",
+  "generatedAt": "2026-10-06T18:20:25.789Z",
   "expectedTablesCount": 10,
   "expectedProceduresCount": 11,
   "files": [
@@ -17,8 +17,8 @@
     },
     {
       "file": "03_InitialData.sql",
-      "sha256": "3b005ed5114d2761735645c87cf7556310bd9dbe4a6c6125b7238f7c86ea822f",
-      "bytes": 2976
+      "sha256": "8472edb87afd7fa8b836ee03604e454f423794250f77ad69bde9070f91cc8b49",
+      "bytes": 3434
     },
     {
       "file": "04_StoredProcedures.sql",
@@ -51,5 +51,5 @@
     "spKAX_UserGuardar",
     "spKAX_RoleListar"
   ],
-  "masterSha256": "907d2eee686ff156f9103199ff7235ef082c5e1419e187447bc9c9763fb181b7"
+  "masterSha256": "63dbbe1e58f9ec47c2f88778435adef647a436cfee3fda80305109f60a982004"
 }

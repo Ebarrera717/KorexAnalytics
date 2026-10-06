@@ -6,8 +6,8 @@ import { Activity, Lock, Mail, ArrowRight, AlertCircle, Shield } from 'lucide-re
 
 export default function AnalyticsLoginPage() {
     const router = useRouter();
-    const [email, setEmail] = useState('admin@korexanalytics.com');
-    const [password, setPassword] = useState('Admin2026!*');
+    const [email, setEmail] = useState('ebarrera@zagencias.com');
+    const [password, setPassword] = useState('admin123');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 

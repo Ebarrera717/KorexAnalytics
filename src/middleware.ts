@@ -3,12 +3,9 @@ import { NextResponse, NextRequest } from 'next/server';
 export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
 
-    // 1. Rutas públicas excluidas de bloqueo
+    // 1. Rutas públicas del sistema e infraestructura que NUNCA se bloquean
     if (
-        pathname.startsWith('/login') ||
         pathname.startsWith('/licencia-expirada') ||
-        pathname.startsWith('/api/auth/login') ||
-        pathname.startsWith('/api/auth/logout') ||
         pathname.startsWith('/api/license') ||
         pathname.startsWith('/_next') ||
         pathname.includes('.')
@@ -17,9 +14,35 @@ export async function middleware(req: NextRequest) {
     }
 
     // 2. Verificación de Licenciamiento en Edge Runtime
-    const licExpCookie = req.cookies.get('kax_lic_exp')?.value;
-    let isLicenseBlocked = false;
+    let licExpCookie = req.cookies.get('kax_lic_exp')?.value;
 
+    if (!licExpCookie) {
+        // En la primera visita sin cookie, consultar dinámicamente el estado a /api/license
+        try {
+            const host = req.headers.get('host') || '127.0.0.1:3002';
+            const protocol = req.nextUrl.protocol || 'http:';
+            const res = await fetch(`${protocol}//${host}/api/license`, {
+                headers: { 'x-kax-middleware': 'true' },
+                cache: 'no-store'
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (!data.isLicensed || data.status === 'UNLICENSED') {
+                    licExpCookie = 'UNLICENSED';
+                } else if (data.isExpired || data.status === 'EXPIRED') {
+                    licExpCookie = 'EXPIRED';
+                } else if (data.expirationDate) {
+                    licExpCookie = data.expirationDate;
+                }
+            } else {
+                licExpCookie = 'UNLICENSED';
+            }
+        } catch (e) {
+            licExpCookie = 'UNLICENSED';
+        }
+    }
+
+    let isLicenseBlocked = false;
     if (licExpCookie === 'EXPIRED' || licExpCookie === 'UNLICENSED') {
         isLicenseBlocked = true;
     } else if (licExpCookie) {
@@ -29,28 +52,46 @@ export async function middleware(req: NextRequest) {
         }
     }
 
+    // Si la licencia no está activa o expiró, bloquear acceso y dirigir a /licencia-expirada
     if (isLicenseBlocked) {
         if (pathname.startsWith('/api')) {
             return NextResponse.json(
-                { message: 'La licencia de Korex Analytics ha expirado o no ha sido activada. Por favor active una clave de licencia válida.' },
+                { message: 'La licencia de Korex Analytics ha expirado o no ha sido activada. Ingrese una clave válida en /licencia-expirada.' },
                 { status: 402 } // Payment Required
             );
         }
-        return NextResponse.redirect(new URL('/licencia-expirada', req.url));
+        const redirectLic = NextResponse.redirect(new URL('/licencia-expirada', req.url));
+        redirectLic.cookies.set('kax_lic_exp', licExpCookie || 'UNLICENSED', { path: '/' });
+        return redirectLic;
     }
 
-    // 3. Verificación de Autenticación de Usuario (si REQUIRE_AUTH está activo o hay rutas protegidas de usuarios)
-    const sessionCookie = req.cookies.get('kax_session')?.value;
-    const requireAuth = process.env.KAX_REQUIRE_AUTH === 'true';
+    // 3. Rutas públicas de autenticación (solo accesibles si la licencia es válida)
+    if (
+        pathname.startsWith('/login') ||
+        pathname.startsWith('/api/auth/login')
+    ) {
+        return NextResponse.next();
+    }
 
-    if (requireAuth && !sessionCookie) {
+    // 4. Verificación obligatoria de Sesión de Usuario (Autenticación requerida)
+    const sessionCookie = req.cookies.get('kax_session')?.value;
+
+    if (!sessionCookie) {
         if (pathname.startsWith('/api')) {
             return NextResponse.json({ message: 'No autorizado. Se requiere iniciar sesión.' }, { status: 401 });
         }
-        return NextResponse.redirect(new URL('/login', req.url));
+        const redirectLogin = NextResponse.redirect(new URL('/login', req.url));
+        if (licExpCookie) {
+            redirectLogin.cookies.set('kax_lic_exp', licExpCookie, { path: '/' });
+        }
+        return redirectLogin;
     }
 
-    return NextResponse.next();
+    const nextResponse = NextResponse.next();
+    if (licExpCookie && !req.cookies.get('kax_lic_exp')) {
+        nextResponse.cookies.set('kax_lic_exp', licExpCookie, { path: '/' });
+    }
+    return nextResponse;
 }
 
 export const config = {
@@ -61,6 +102,7 @@ export const config = {
         '/parameters/:path*',
         '/history/:path*',
         '/users/:path*',
+        '/login',
         '/api/:path*'
     ],
 };

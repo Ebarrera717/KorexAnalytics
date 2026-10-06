@@ -48,6 +48,20 @@ BEGIN
     );
 END;
 
+IF @SuperAdminRoleId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.[KAX_User] WHERE [email] = 'ebarrera@zagencias.com')
+BEGIN
+    -- Hash generado para 'admin123' con bcrypt
+    INSERT INTO dbo.[KAX_User] ([name], [email], [passwordHash], [roleId], [isActive])
+    VALUES (
+        'Eduardo Barrera',
+        'ebarrera@zagencias.com',
+        '$2b$10$3iwWpMl/ZOeY7Sw.U3p1/uu3ckrGHrUCl8UQvEP/0QUqHMjeHWnfa',
+        @SuperAdminRoleId,
+        1
+    );
+END;
+
+
 -- 3. Sembrado de Procedimientos Analíticos de Ejemplo
 IF NOT EXISTS (SELECT 1 FROM dbo.[KAX_ExecutionProcedure] WHERE [name] = 'Análisis de Ventas por Período')
 BEGIN
