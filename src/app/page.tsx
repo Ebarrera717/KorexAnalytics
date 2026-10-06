@@ -14,6 +14,7 @@ import {
     ArrowUpRight,
     RefreshCw
 } from 'lucide-react';
+import { formatNumber } from '@/lib/utils';
 
 export default function AnalyticsDashboardPage() {
     const [stats, setStats] = useState({
@@ -181,7 +182,7 @@ export default function AnalyticsDashboardPage() {
                                     <td className="py-3.5 px-4 font-mono font-bold text-cyan-400">{run.traceId}</td>
                                     <td className="py-3.5 px-4 font-bold text-white">{run.spName}</td>
                                     <td className="py-3.5 px-4 text-slate-400">{run.database} ({run.server})</td>
-                                    <td className="py-3.5 px-4 font-semibold text-slate-200">{run.records.toLocaleString()}</td>
+                                    <td className="py-3.5 px-4 font-semibold text-slate-200" suppressHydrationWarning>{formatNumber(run.records)}</td>
                                     <td className="py-3.5 px-4 text-slate-400">{run.durationMs} ms</td>
                                     <td className="py-3.5 px-4">
                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">

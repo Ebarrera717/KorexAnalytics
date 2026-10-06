@@ -34,8 +34,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
     if (isLoginPage) {
         return (
-            <html lang="es">
-                <body className="bg-slate-950 text-slate-100 antialiased font-sans">
+            <html lang="es" suppressHydrationWarning>
+                <body className="bg-slate-950 text-slate-100 antialiased font-sans" suppressHydrationWarning>
                     {children}
                 </body>
             </html>
@@ -43,8 +43,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     }
 
     return (
-        <html lang="es">
-            <body className="bg-slate-950 text-slate-100 antialiased font-sans">
+        <html lang="es" suppressHydrationWarning>
+            <body className="bg-slate-950 text-slate-100 antialiased font-sans" suppressHydrationWarning>
                 <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row antialiased font-sans">
                     {/* Sidebar Desktop */}
                     <aside className="hidden md:flex flex-col w-64 bg-slate-900 border-r border-slate-800 p-5 shrink-0 select-none">

@@ -52,12 +52,19 @@ export class ExecutionRunner {
 
             // 2. Inspeccionar sys.parameters para filtrar parámetros válidos
             const metaReq = pool.request();
-            metaReq.input('spName', mssql.VarChar, req.spName);
+            metaReq.input('spName', mssql.NVarChar, req.spName);
             const sysParamsRes = await metaReq.query(`
                 SELECT p.name AS param_name
                 FROM sys.parameters p
                 WHERE p.object_id = OBJECT_ID(@spName)
                    OR p.object_id = OBJECT_ID('dbo.' + REPLACE(REPLACE(@spName, 'dbo.', ''), '[', ''))
+                   OR p.object_id = OBJECT_ID('[dbo].[' + REPLACE(REPLACE(REPLACE(@spName, 'dbo.', ''), '[', ''), ']', '') + ']')
+                   OR p.object_id = (
+                       SELECT TOP 1 pr.object_id 
+                       FROM sys.procedures pr 
+                       WHERE pr.name = @spName 
+                          OR pr.name = REPLACE(REPLACE(REPLACE(@spName, 'dbo.', ''), '[', ''), ']', '')
+                   )
             `);
 
             const validParamSet = new Set<string>();
@@ -91,8 +98,10 @@ export class ExecutionRunner {
                 });
             }
 
-            // 4. Ejecutar el Stored Procedure
-            const result = await execReq.execute(req.spName);
+            // 4. Ejecutar el Stored Procedure de forma segura delimitando identificadores
+            const rawSpClean = req.spName.replace(/^dbo\./, '').replace(/^\[dbo\]\./, '').replace(/^\[/, '').replace(/\]$/, '');
+            const safeQualifiedName = `[dbo].[${rawSpClean}]`;
+            const result = await execReq.execute(safeQualifiedName);
             const recordset = result.recordset || [];
             const elapsedTime = Date.now() - startTime;
             const columns = recordset.length > 0 ? Object.keys(recordset[0]) : [];

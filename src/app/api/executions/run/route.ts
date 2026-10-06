@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ExecutionRunner, decryptDatabasePassword } from '@/lib/korex-analytics';
+import { ExecutionRunner, SQLProfilesService } from '@/lib/korex-analytics';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // Hasta 5 minutos para SPs analíticos
@@ -13,12 +13,21 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, message: 'Perfil SQL y Stored Procedure son obligatorios.' }, { status: 400 });
         }
 
+        let fullProfile = profile;
+        if (profile.id) {
+            const dbProfile = await SQLProfilesService.getProfileById(Number(profile.id));
+            if (dbProfile) {
+                fullProfile = {
+                    ...dbProfile,
+                    ...profile,
+                    encryptedPassword: dbProfile.encryptedPassword
+                };
+            }
+        }
+
         const runnerReq = {
-            profile: {
-                ...profile,
-                encryptedPassword: profile.encryptedPassword
-            },
-            targetDatabase: targetDatabase || profile.defaultDatabase,
+            profile: fullProfile,
+            targetDatabase: targetDatabase || fullProfile.defaultDatabase,
             spName,
             parameters: parameters || {},
             userId: userId || 1,

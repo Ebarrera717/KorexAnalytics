@@ -11,6 +11,7 @@ import {
     Database,
     Filter
 } from 'lucide-react';
+import { formatNumber } from '@/lib/utils';
 
 export default function ExecutionHistoryPage() {
     const [searchTerm, setSearchTerm] = useState('');
@@ -130,7 +131,7 @@ export default function ExecutionHistoryPage() {
                                     <td className="py-3.5 px-4 text-slate-400">
                                         {item.server} / <span className="text-slate-200">{item.database}</span>
                                     </td>
-                                    <td className="py-3.5 px-4 font-semibold text-slate-200">{item.records.toLocaleString()}</td>
+                                    <td className="py-3.5 px-4 font-semibold text-slate-200" suppressHydrationWarning>{formatNumber(item.records)}</td>
                                     <td className="py-3.5 px-4 text-slate-400">{item.durationMs} ms</td>
                                     <td className="py-3.5 px-4">
                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
