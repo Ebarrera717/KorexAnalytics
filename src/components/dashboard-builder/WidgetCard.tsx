@@ -5,6 +5,7 @@ import {
     Chart as ChartJS,
     CategoryScale,
     LinearScale,
+    LogarithmicScale,
     PointElement,
     LineElement,
     BarElement,
@@ -34,6 +35,7 @@ import {
 ChartJS.register(
     CategoryScale,
     LinearScale,
+    LogarithmicScale,
     PointElement,
     LineElement,
     BarElement,
@@ -163,7 +165,7 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                           }
                       },
                       y: {
-                          type: 'logarithmic',
+                          type: processed.values.length > 0 && processed.values.every(v => v > 0) ? 'logarithmic' : 'linear',
                           grid: { color: 'rgba(255, 255, 255, 0.08)' },
                           ticks: {
                               color: '#cbd5e1',
