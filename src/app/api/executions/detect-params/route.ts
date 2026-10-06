@@ -116,7 +116,14 @@ export async function GET(req: NextRequest) {
                 .replace(/^cd /, 'Código ')
                 .replace(/^ds /, 'Descripción ')
                 .replace(/^id /, 'ID ');
-            label = label.charAt(0).toUpperCase() + label.slice(1);
+
+            if (lowerName === 'fecha_salida_inicio') label = 'Fecha Salida (Desde)';
+            else if (lowerName === 'fecha_salida_fin') label = 'Fecha Salida (Hasta)';
+            else if (lowerName === 'fecha_llegada_inicio') label = 'Fecha Llegada (Desde)';
+            else if (lowerName === 'fecha_llegada_fin') label = 'Fecha Llegada (Hasta)';
+            else {
+                label = label.charAt(0).toUpperCase() + label.slice(1);
+            }
 
             // 2. Detección de tipos
             let type: 'text' | 'date' | 'select' | 'number' = 'text';
@@ -125,7 +132,10 @@ export async function GET(req: NextRequest) {
 
             if (typeName.includes('date') || typeName.includes('time') || lowerName.includes('fecha') || lowerName.startsWith('dt_')) {
                 type = 'date';
-                if (lowerName.includes('inicio') || lowerName.includes('start') || lowerName.includes('desde') || lowerName.includes('dt_desde')) {
+                if (lowerName.includes('salida') || lowerName.includes('llegada')) {
+                    // Fechas de vuelo opcionales: no pre-poblar para no restringir vuelos futuros por defecto
+                    defaultValue = '';
+                } else if (lowerName.includes('inicio') || lowerName.includes('start') || lowerName.includes('desde') || lowerName.includes('dt_desde')) {
                     defaultValue = 'FIRST_DAY_OF_MONTH';
                 } else if (lowerName.includes('fin') || lowerName.includes('end') || lowerName.includes('hasta') || lowerName.includes('dt_hasta')) {
                     defaultValue = 'TODAY';
