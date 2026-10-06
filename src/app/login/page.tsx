@@ -23,11 +23,16 @@ export default function AnalyticsLoginPage() {
                 body: JSON.stringify({ email, password })
             });
             const data = await res.json();
+            if (res.status === 402 || data.requiresLicense) {
+                router.push('/licencia-expirada');
+                return;
+            }
             if (!res.ok || !data.success) {
                 setError(data.message || 'Credenciales inválidas');
             } else {
                 router.push('/');
             }
+
         } catch (err: any) {
             setError(err.message || 'Error de conexión');
         } finally {

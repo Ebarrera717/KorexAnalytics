@@ -28,9 +28,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
     React.useEffect(() => {
         if (!isBlankPage) {
+            // 1. Validar estado en vivo de la licencia
+            fetch('/api/license')
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.isLicensed || d.status === 'UNLICENSED' || d.isExpired) {
+                        window.location.replace('/licencia-expirada');
+                        return;
+                    }
+                })
+                .catch(() => {});
+
+            // 2. Validar sesión de usuario
             fetch('/api/auth/me')
                 .then(r => r.json())
                 .then(d => {
+                    if (!d.authenticated) {
+                        window.location.replace('/login');
+                        return;
+                    }
                     if (d.authenticated && d.user) {
                         setCurrentUser({ name: d.user.name, role: d.user.role });
                     }
@@ -38,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 .catch(() => {});
         }
     }, [pathname, isBlankPage]);
+
 
     const navItems = [
         { name: 'Dashboard', href: '/', icon: Activity },

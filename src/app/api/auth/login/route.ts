@@ -18,7 +18,20 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, message: 'Email y contraseña son requeridos.' }, { status: 400 });
         }
 
+        // 0. Validar vigencia de licencia antes de permitir inicio de sesión
+        const license = await getStoredLicenseStatus();
+        if (!license.isLicensed || license.status === 'UNLICENSED' || license.isExpired) {
+            const licErrResp = NextResponse.json({
+                success: false,
+                requiresLicense: true,
+                message: 'El sistema Korex Analytics no posee una licencia activa o ha expirado. Por favor active una clave de licencia válida.'
+            }, { status: 402 });
+            licErrResp.cookies.set('kax_lic_exp', license.isExpired ? 'EXPIRED' : 'UNLICENSED', { path: '/' });
+            return licErrResp;
+        }
+
         const pool = await getInternalDbPool();
+
 
         // 1. Buscar usuario en dbo.KAX_User
         let result = await pool.request()

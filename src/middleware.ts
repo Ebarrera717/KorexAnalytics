@@ -14,38 +14,12 @@ export async function middleware(req: NextRequest) {
     }
 
     // 2. Verificación de Licenciamiento en Edge Runtime
-    let licExpCookie = req.cookies.get('kax_lic_exp')?.value;
-
-    if (!licExpCookie) {
-        // En la primera visita sin cookie, consultar dinámicamente el estado a /api/license
-        try {
-            const host = req.headers.get('host') || '127.0.0.1:3002';
-            const protocol = req.nextUrl.protocol || 'http:';
-            const res = await fetch(`${protocol}//${host}/api/license`, {
-                headers: { 'x-kax-middleware': 'true' },
-                cache: 'no-store'
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (!data.isLicensed || data.status === 'UNLICENSED') {
-                    licExpCookie = 'UNLICENSED';
-                } else if (data.isExpired || data.status === 'EXPIRED') {
-                    licExpCookie = 'EXPIRED';
-                } else if (data.expirationDate) {
-                    licExpCookie = data.expirationDate;
-                }
-            } else {
-                licExpCookie = 'UNLICENSED';
-            }
-        } catch (e) {
-            licExpCookie = 'UNLICENSED';
-        }
-    }
+    const licExpCookie = req.cookies.get('kax_lic_exp')?.value;
 
     let isLicenseBlocked = false;
-    if (licExpCookie === 'EXPIRED' || licExpCookie === 'UNLICENSED') {
+    if (!licExpCookie || licExpCookie === 'EXPIRED' || licExpCookie === 'UNLICENSED') {
         isLicenseBlocked = true;
-    } else if (licExpCookie) {
+    } else {
         const expDate = new Date(`${licExpCookie}T23:59:59.999Z`);
         if (isNaN(expDate.getTime()) || new Date() > expDate) {
             isLicenseBlocked = true;
@@ -61,7 +35,9 @@ export async function middleware(req: NextRequest) {
             );
         }
         const redirectLic = NextResponse.redirect(new URL('/licencia-expirada', req.url));
-        redirectLic.cookies.set('kax_lic_exp', licExpCookie || 'UNLICENSED', { path: '/' });
+        if (!licExpCookie) {
+            redirectLic.cookies.set('kax_lic_exp', 'UNLICENSED', { path: '/' });
+        }
         return redirectLic;
     }
 
@@ -80,18 +56,10 @@ export async function middleware(req: NextRequest) {
         if (pathname.startsWith('/api')) {
             return NextResponse.json({ message: 'No autorizado. Se requiere iniciar sesión.' }, { status: 401 });
         }
-        const redirectLogin = NextResponse.redirect(new URL('/login', req.url));
-        if (licExpCookie) {
-            redirectLogin.cookies.set('kax_lic_exp', licExpCookie, { path: '/' });
-        }
-        return redirectLogin;
+        return NextResponse.redirect(new URL('/login', req.url));
     }
 
-    const nextResponse = NextResponse.next();
-    if (licExpCookie && !req.cookies.get('kax_lic_exp')) {
-        nextResponse.cookies.set('kax_lic_exp', licExpCookie, { path: '/' });
-    }
-    return nextResponse;
+    return NextResponse.next();
 }
 
 export const config = {
