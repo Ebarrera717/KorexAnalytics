@@ -115,19 +115,29 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                 display: widget.type === 'pie' || widget.type === 'doughnut',
                 position: 'bottom',
                 labels: {
-                    color: '#f1f5f9',
-                    font: { size: 11, family: 'Inter, system-ui, sans-serif', weight: '600' },
+                    color: '#f8fafc',
+                    font: { size: 11, family: 'Inter, system-ui, sans-serif', weight: '700' },
                     boxWidth: 14,
-                    padding: 14
+                    padding: 12,
+                    generateLabels: function(chart: any) {
+                        const overrides = (ChartJS.overrides as any)[widget.type];
+                        const original = overrides?.plugins?.legend?.labels?.generateLabels?.(chart) || [];
+                        return original.map((item: any, idx: number) => {
+                            const val = processed.values[idx] || 0;
+                            const pct = totalSum > 0 ? ((val / totalSum) * 100).toFixed(2) : '0';
+                            item.text = `${item.text} (${pct}%)`;
+                            return item;
+                        });
+                    }
                 }
             },
             tooltip: {
-                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                backgroundColor: 'rgba(15, 23, 42, 0.98)',
                 titleColor: '#f8fafc',
                 bodyColor: '#38bdf8',
-                borderColor: 'rgba(56, 189, 248, 0.4)',
-                borderWidth: 1.5,
-                padding: 12,
+                borderColor: 'rgba(56, 189, 248, 0.5)',
+                borderWidth: 2,
+                padding: 14,
                 callbacks: {
                     label: function (context: any) {
                         const val = context.parsed.y !== undefined ? context.parsed.y : context.parsed;
@@ -147,12 +157,13 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                           grid: { color: 'rgba(255, 255, 255, 0.08)' },
                           ticks: {
                               color: '#cbd5e1',
-                              font: { size: 10, weight: '600' },
+                              font: { size: 10, weight: '700' },
                               maxRotation: 35,
                               minRotation: 0
                           }
                       },
                       y: {
+                          type: 'logarithmic',
                           grid: { color: 'rgba(255, 255, 255, 0.08)' },
                           ticks: {
                               color: '#cbd5e1',
@@ -184,9 +195,12 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                 borderColor:
                     widget.type === 'line' || widget.type === 'area'
                         ? effectivePalette.border[0]
+                        : widget.type === 'doughnut' || widget.type === 'pie'
+                        ? '#090d16'
                         : itemColorsBorder,
-                borderWidth: 2,
+                borderWidth: widget.type === 'doughnut' || widget.type === 'pie' ? 3 : 2,
                 borderRadius: widget.type === 'bar' ? 6 : 0,
+                spacing: widget.type === 'doughnut' ? 2 : 0,
                 fill: widget.type === 'area',
                 tension: 0.35,
                 percentageMap
@@ -314,7 +328,7 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                         </table>
                     </div>
                 ) : (
-                    <div className="h-[200px] w-full">
+                    <div className="h-[250px] w-full">
                         {processed.labels.length === 0 ? (
                             <div className="h-full flex items-center justify-center text-xs text-slate-500">
                                 No se encontraron datos para graficar
