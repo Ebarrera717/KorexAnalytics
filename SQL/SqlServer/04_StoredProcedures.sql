@@ -211,3 +211,163 @@ BEGIN
       AND (@userId IS NULL OR [userId] = @userId);
 END;
 GO
+
+-- 7. SP: spKAX_LicenseConsultar
+CREATE OR ALTER PROCEDURE dbo.spKAX_LicenseConsultar
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT TOP 1
+        [id],
+        [clientName],
+        [nit],
+        [licenseKey],
+        [expirationDate],
+        [issuedDate],
+        [status],
+        [activatedAt],
+        [updatedAt],
+        CASE 
+            WHEN [expirationDate] < CAST(SYSUTCDATETIME() AS DATE) THEN 1 
+            ELSE 0 
+        END AS [isExpired],
+        DATEDIFF(day, CAST(SYSUTCDATETIME() AS DATE), [expirationDate]) AS [daysRemaining]
+    FROM dbo.[KAX_License]
+    ORDER BY [id] DESC;
+END;
+GO
+
+-- 8. SP: spKAX_LicenseAplicar
+CREATE OR ALTER PROCEDURE dbo.spKAX_LicenseAplicar
+    @clientName NVARCHAR(255),
+    @nit NVARCHAR(50),
+    @licenseKey NVARCHAR(MAX),
+    @expirationDate DATE,
+    @issuedDate DATE = NULL,
+    @status NVARCHAR(50) = 'ACTIVE',
+    @savedId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    UPDATE dbo.[KAX_License]
+    SET [status] = 'INACTIVE', [updatedAt] = SYSUTCDATETIME()
+    WHERE [status] = 'ACTIVE';
+
+    INSERT INTO dbo.[KAX_License] (
+        [clientName],
+        [nit],
+        [licenseKey],
+        [expirationDate],
+        [issuedDate],
+        [status],
+        [activatedAt],
+        [updatedAt]
+    )
+    VALUES (
+        @clientName,
+        @nit,
+        @licenseKey,
+        @expirationDate,
+        COALESCE(@issuedDate, CAST(SYSUTCDATETIME() AS DATE)),
+        @status,
+        SYSUTCDATETIME(),
+        SYSUTCDATETIME()
+    );
+
+    SET @savedId = SCOPE_IDENTITY();
+END;
+GO
+
+-- 9. SP: spKAX_UserListar
+CREATE OR ALTER PROCEDURE dbo.spKAX_UserListar
+    @isActive BIT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        u.[id],
+        u.[name],
+        u.[email],
+        u.[roleId],
+        r.[name] AS [roleName],
+        r.[permissions] AS [rolePermissions],
+        u.[isActive],
+        u.[lastLoginAt],
+        u.[createdAt],
+        u.[updatedAt]
+    FROM dbo.[KAX_User] u
+    INNER JOIN dbo.[KAX_Role] r ON r.[id] = u.[roleId]
+    WHERE (@isActive IS NULL OR u.[isActive] = @isActive)
+    ORDER BY u.[name] ASC;
+END;
+GO
+
+-- 10. SP: spKAX_UserGuardar
+CREATE OR ALTER PROCEDURE dbo.spKAX_UserGuardar
+    @id INT = NULL,
+    @name NVARCHAR(150),
+    @email NVARCHAR(255),
+    @passwordHash NVARCHAR(255) = NULL,
+    @roleId INT,
+    @isActive BIT = 1,
+    @savedId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF @id IS NOT NULL AND EXISTS (SELECT 1 FROM dbo.[KAX_User] WHERE [id] = @id)
+    BEGIN
+        UPDATE dbo.[KAX_User]
+        SET [name] = @name,
+            [email] = @email,
+            [roleId] = @roleId,
+            [isActive] = @isActive,
+            [passwordHash] = CASE 
+                WHEN @passwordHash IS NOT NULL AND LEN(TRIM(@passwordHash)) > 0 THEN @passwordHash 
+                ELSE [passwordHash] 
+            END,
+            [updatedAt] = SYSUTCDATETIME()
+        WHERE [id] = @id;
+
+        SET @savedId = @id;
+    END
+    ELSE
+    BEGIN
+        INSERT INTO dbo.[KAX_User] (
+            [name], [email], [passwordHash], [roleId], [isActive], [createdAt], [updatedAt]
+        )
+        VALUES (
+            @name, @email, COALESCE(@passwordHash, ''), @roleId, @isActive, SYSUTCDATETIME(), SYSUTCDATETIME()
+        );
+
+        SET @savedId = SCOPE_IDENTITY();
+    END
+END;
+GO
+
+-- 11. SP: spKAX_RoleListar
+CREATE OR ALTER PROCEDURE dbo.spKAX_RoleListar
+    @isActive BIT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        [id],
+        [name],
+        [description],
+        [permissions],
+        [isActive],
+        [createdAt],
+        [updatedAt]
+    FROM dbo.[KAX_Role]
+    WHERE (@isActive IS NULL OR [isActive] = @isActive)
+    ORDER BY [id] ASC;
+END;
+GO
+

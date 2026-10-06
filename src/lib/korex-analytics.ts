@@ -11,3 +11,7 @@ export * from './audit-logger';
 export * from './sql-pool-manager';
 export * from './execution-runner';
 export * from './sql-profiles-service';
+export * from './kax-db';
+export * from './kax-license';
+export * from './kax-permissions';
+

@@ -50,8 +50,8 @@ async function runMultidbValidation() {
     const manifestSql = JSON.parse(fs.readFileSync(sqlServerManifestPath, 'utf8'));
     const manifestPg = JSON.parse(fs.readFileSync(postgresManifestPath, 'utf8'));
 
-    assertCheck('Conteo de tablas en manifiestos coincide', manifestSql.tables.length === manifestPg.tables.length && manifestSql.tables.length === 9);
-    assertCheck('Conteo de procedimientos en manifiestos coincide', manifestSql.procedures.length === manifestPg.procedures.length && manifestSql.procedures.length === 6);
+    assertCheck('Conteo de tablas en manifiestos coincide', manifestSql.tables.length === manifestPg.tables.length && manifestSql.tables.length === 10);
+    assertCheck('Conteo de procedimientos en manifiestos coincide', manifestSql.procedures.length === manifestPg.procedures.length && manifestSql.procedures.length === 11);
 
     // CAPA 2: VALIDACIÓN EN VIVO CONTRA MICROSOFT SQL SERVER
     console.log('\n[CAPA 2] Validando Objetos en Vivo sobre Microsoft SQL Server...');

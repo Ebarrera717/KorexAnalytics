@@ -179,3 +179,19 @@ BEGIN
     CREATE NONCLUSTERED INDEX IX_KAX_Dashboard_ProcId ON dbo.[KAX_Dashboard]([procedureId]);
     CREATE NONCLUSTERED INDEX IX_KAX_Dashboard_UserId ON dbo.[KAX_Dashboard]([userId]);
 END;
+
+-- 10. TABLA: KAX_License (Control Criptográfico de Licenciamiento del Software)
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'KAX_License' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.[KAX_License] (
+        [id] INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_KAX_License PRIMARY KEY CLUSTERED,
+        [clientName] NVARCHAR(255) NOT NULL,
+        [nit] NVARCHAR(50) NOT NULL,
+        [licenseKey] NVARCHAR(MAX) NOT NULL,
+        [expirationDate] DATE NOT NULL,
+        [issuedDate] DATE NULL,
+        [status] NVARCHAR(50) NOT NULL CONSTRAINT DF_KAX_License_Status DEFAULT 'ACTIVE',
+        [activatedAt] DATETIME2 NOT NULL CONSTRAINT DF_KAX_License_ActivatedAt DEFAULT SYSUTCDATETIME(),
+        [updatedAt] DATETIME2 NOT NULL CONSTRAINT DF_KAX_License_UpdatedAt DEFAULT SYSUTCDATETIME()
+    );
+END;

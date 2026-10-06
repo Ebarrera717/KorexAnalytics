@@ -26,7 +26,7 @@ export default function AnalyticsLoginPage() {
             if (!res.ok || !data.success) {
                 setError(data.message || 'Credenciales inválidas');
             } else {
-                router.push('/analytics');
+                router.push('/');
             }
         } catch (err: any) {
             setError(err.message || 'Error de conexión');

@@ -28,7 +28,8 @@ const EXPECTED_TABLES = [
     'KAX_ExecutionPreset',
     'KAX_ExecutionRun',
     'KAX_SystemAuditLog',
-    'KAX_Dashboard'
+    'KAX_Dashboard',
+    'KAX_License'
 ];
 
 const EXPECTED_PROCEDURES = [
@@ -37,8 +38,14 @@ const EXPECTED_PROCEDURES = [
     'spKAX_RegistrarAuditoria',
     'spKAX_DashboardGuardar',
     'spKAX_DashboardListar',
-    'spKAX_DashboardEliminar'
+    'spKAX_DashboardEliminar',
+    'spKAX_LicenseConsultar',
+    'spKAX_LicenseAplicar',
+    'spKAX_UserListar',
+    'spKAX_UserGuardar',
+    'spKAX_RoleListar'
 ];
+
 
 function calculateSha256(content) {
     return crypto.createHash('sha256').update(content, 'utf8').digest('hex');

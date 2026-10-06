@@ -147,3 +147,16 @@ CREATE TABLE IF NOT EXISTS public."KAX_Dashboard" (
 );
 CREATE INDEX IF NOT EXISTS "IX_KAX_Dashboard_ProcedureId" ON public."KAX_Dashboard"("procedureId");
 CREATE INDEX IF NOT EXISTS "IX_KAX_Dashboard_UserId" ON public."KAX_Dashboard"("userId");
+
+-- 10. TABLA: KAX_License (Control Criptográfico de Licenciamiento del Software)
+CREATE TABLE IF NOT EXISTS public."KAX_License" (
+    "id" SERIAL PRIMARY KEY,
+    "clientName" VARCHAR(255) NOT NULL,
+    "nit" VARCHAR(50) NOT NULL,
+    "licenseKey" TEXT NOT NULL,
+    "expirationDate" DATE NOT NULL,
+    "issuedDate" DATE NULL,
+    "status" VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+    "activatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

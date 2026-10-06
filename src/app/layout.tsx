@@ -21,18 +21,34 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     const pathname = usePathname();
     const [mobileOpen, setMobileOpen] = useState(false);
 
-    // No mostrar sidebar en la pantalla de login
-    const isLoginPage = pathname === '/login';
+    // No mostrar sidebar en login ni en pantalla de licencia expirada
+    const isBlankPage = pathname === '/login' || pathname === '/licencia-expirada';
+
+    const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
+
+    React.useEffect(() => {
+        if (!isBlankPage) {
+            fetch('/api/auth/me')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.authenticated && d.user) {
+                        setCurrentUser({ name: d.user.name, role: d.user.role });
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [pathname, isBlankPage]);
 
     const navItems = [
         { name: 'Dashboard', href: '/', icon: Activity },
         { name: 'Ejecuciones', href: '/executions', icon: Play },
         { name: 'SQL Server', href: '/sqlserver', icon: Database },
         { name: 'Parámetros', href: '/parameters', icon: Sliders },
-        { name: 'Historial', href: '/history', icon: History }
+        { name: 'Historial', href: '/history', icon: History },
+        { name: 'Seguridad / Licencia', href: '/users', icon: Shield }
     ];
 
-    if (isLoginPage) {
+    if (isBlankPage) {
         return (
             <html lang="es" suppressHydrationWarning>
                 <body className="bg-slate-950 text-slate-100 antialiased font-sans" suppressHydrationWarning>
@@ -41,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </html>
         );
     }
+
 
     return (
         <html lang="es" suppressHydrationWarning>
@@ -91,19 +108,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                                     <Shield className="w-4 h-4 text-cyan-400" />
                                 </div>
                                 <div className="truncate">
-                                    <p className="text-xs font-bold text-slate-200 truncate">Admin KAX</p>
-                                    <p className="text-[10px] text-slate-500 truncate">SUPER_ADMIN</p>
+                                    <p className="text-xs font-bold text-slate-200 truncate">{currentUser?.name || 'Administrador'}</p>
+                                    <p className="text-[10px] text-slate-500 truncate">{currentUser?.role || 'SUPER_ADMIN'}</p>
                                 </div>
                             </div>
-                            <Link
-                                href="/login"
+                            <button
+                                onClick={async () => {
+                                    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+                                    window.location.href = '/login';
+                                }}
                                 title="Cerrar sesión"
                                 className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                             >
                                 <LogOut className="w-4 h-4" />
-                            </Link>
+                            </button>
                         </div>
                     </aside>
+
 
                     {/* Mobile Header */}
                     <div className="md:hidden flex items-center justify-between p-4 bg-slate-900 border-b border-slate-800">

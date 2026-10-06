@@ -1,9 +1,9 @@
 {
   "engine": "SQLSERVER",
   "version": "1.0.0",
-  "generatedAt": "2026-10-05T23:43:26.106Z",
-  "expectedTablesCount": 9,
-  "expectedProceduresCount": 6,
+  "generatedAt": "2026-10-06T17:47:13.000Z",
+  "expectedTablesCount": 10,
+  "expectedProceduresCount": 11,
   "files": [
     {
       "file": "01_CreateDatabase.sql",
@@ -12,8 +12,8 @@
     },
     {
       "file": "02_Tables.sql",
-      "sha256": "3db7325d58e272e5f984c888a7b8eb4fb61e98de72675d3bb1fedfc019b22750",
-      "bytes": 11903
+      "sha256": "055b46a029247e55d71440b7b17e390e3b79b38976076f8b9038f5f71d7dab15",
+      "bytes": 12724
     },
     {
       "file": "03_InitialData.sql",
@@ -22,8 +22,8 @@
     },
     {
       "file": "04_StoredProcedures.sql",
-      "sha256": "2516fd74985e0907deda6f980fa04037468cb049805e5ecf6d67a318fcb90a55",
-      "bytes": 5099
+      "sha256": "ab3dfc98cc16283c5ae53efc653a7de2823754e0ded7a3b63251160cda9537ab",
+      "bytes": 8806
     }
   ],
   "tables": [
@@ -35,7 +35,8 @@
     "KAX_ExecutionPreset",
     "KAX_ExecutionRun",
     "KAX_SystemAuditLog",
-    "KAX_Dashboard"
+    "KAX_Dashboard",
+    "KAX_License"
   ],
   "procedures": [
     "spKAX_RegistrarInicioEjecucion",
@@ -43,7 +44,12 @@
     "spKAX_RegistrarAuditoria",
     "spKAX_DashboardGuardar",
     "spKAX_DashboardListar",
-    "spKAX_DashboardEliminar"
+    "spKAX_DashboardEliminar",
+    "spKAX_LicenseConsultar",
+    "spKAX_LicenseAplicar",
+    "spKAX_UserListar",
+    "spKAX_UserGuardar",
+    "spKAX_RoleListar"
   ],
-  "masterSha256": "8277976e4b40ca3817c585b1d405f21d9afb2e42d020194c366781dea29d411b"
+  "masterSha256": "907d2eee686ff156f9103199ff7235ef082c5e1419e187447bc9c9763fb181b7"
 }

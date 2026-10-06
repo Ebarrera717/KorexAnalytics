@@ -214,3 +214,172 @@ BEGIN
       AND (p_userid IS NULL OR "userId" = p_userid);
 END;
 $$ LANGUAGE plpgsql;
+
+-- 7. FUNCIÓN: spkax_licenseconsultar
+CREATE OR REPLACE FUNCTION public.spkax_licenseconsultar()
+RETURNS TABLE (
+    "id" INT,
+    "clientName" VARCHAR(255),
+    "nit" VARCHAR(50),
+    "licenseKey" TEXT,
+    "expirationDate" DATE,
+    "issuedDate" DATE,
+    "status" VARCHAR(50),
+    "activatedAt" TIMESTAMPTZ,
+    "updatedAt" TIMESTAMPTZ,
+    "isExpired" BOOLEAN,
+    "daysRemaining" INT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        l."id",
+        l."clientName",
+        l."nit",
+        l."licenseKey",
+        l."expirationDate",
+        l."issuedDate",
+        l."status",
+        l."activatedAt",
+        l."updatedAt",
+        (l."expirationDate" < CURRENT_DATE) AS "isExpired",
+        (l."expirationDate" - CURRENT_DATE)::INT AS "daysRemaining"
+    FROM public."KAX_License" l
+    ORDER BY l."id" DESC
+    LIMIT 1;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 8. FUNCIÓN: spkax_licenseaplicar
+CREATE OR REPLACE FUNCTION public.spkax_licenseaplicar(
+    p_clientname VARCHAR(255),
+    p_nit VARCHAR(50),
+    p_licensekey TEXT,
+    p_expirationdate DATE,
+    p_issueddate DATE DEFAULT NULL,
+    p_status VARCHAR(50) DEFAULT 'ACTIVE'
+) RETURNS INT AS $$
+DECLARE
+    v_saved_id INT;
+BEGIN
+    UPDATE public."KAX_License"
+    SET "status" = 'INACTIVE', "updatedAt" = NOW()
+    WHERE "status" = 'ACTIVE';
+
+    INSERT INTO public."KAX_License" (
+        "clientName", "nit", "licenseKey", "expirationDate",
+        "issuedDate", "status", "activatedAt", "updatedAt"
+    )
+    VALUES (
+        p_clientname, p_nit, p_licensekey, p_expirationdate,
+        COALESCE(p_issueddate, CURRENT_DATE), p_status, NOW(), NOW()
+    )
+    RETURNING "id" INTO v_saved_id;
+
+    RETURN v_saved_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 9. FUNCIÓN: spkax_userlistar
+CREATE OR REPLACE FUNCTION public.spkax_userlistar(
+    p_isactive BOOLEAN DEFAULT NULL
+) RETURNS TABLE (
+    "id" INT,
+    "name" VARCHAR(150),
+    "email" VARCHAR(255),
+    "roleId" INT,
+    "roleName" VARCHAR(100),
+    "rolePermissions" JSONB,
+    "isActive" BOOLEAN,
+    "lastLoginAt" TIMESTAMPTZ,
+    "createdAt" TIMESTAMPTZ,
+    "updatedAt" TIMESTAMPTZ
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        u."id",
+        u."name",
+        u."email",
+        u."roleId",
+        r."name" AS "roleName",
+        r."permissions" AS "rolePermissions",
+        u."isActive",
+        u."lastLoginAt",
+        u."createdAt",
+        u."updatedAt"
+    FROM public."KAX_User" u
+    INNER JOIN public."KAX_Role" r ON r."id" = u."roleId"
+    WHERE (p_isactive IS NULL OR u."isActive" = p_isactive)
+    ORDER BY u."name" ASC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 10. FUNCIÓN: spkax_userguardar
+CREATE OR REPLACE FUNCTION public.spkax_userguardar(
+    p_id INT,
+    p_name VARCHAR(150),
+    p_email VARCHAR(255),
+    p_passwordhash VARCHAR(255),
+    p_roleid INT,
+    p_isactive BOOLEAN DEFAULT TRUE
+) RETURNS INT AS $$
+DECLARE
+    v_saved_id INT;
+BEGIN
+    IF p_id IS NOT NULL AND EXISTS (SELECT 1 FROM public."KAX_User" WHERE "id" = p_id) THEN
+        UPDATE public."KAX_User"
+        SET "name" = p_name,
+            "email" = p_email,
+            "roleId" = p_roleid,
+            "isActive" = p_isactive,
+            "passwordHash" = CASE 
+                WHEN p_passwordhash IS NOT NULL AND LENGTH(TRIM(p_passwordhash)) > 0 THEN p_passwordhash 
+                ELSE "passwordHash" 
+            END,
+            "updatedAt" = NOW()
+        WHERE "id" = p_id;
+
+        v_saved_id := p_id;
+    ELSE
+        INSERT INTO public."KAX_User" (
+            "name", "email", "passwordHash", "roleId", "isActive", "createdAt", "updatedAt"
+        )
+        VALUES (
+            p_name, p_email, COALESCE(p_passwordhash, ''), p_roleid, p_isactive, NOW(), NOW()
+        )
+        RETURNING "id" INTO v_saved_id;
+    END IF;
+
+    RETURN v_saved_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 11. FUNCIÓN: spkax_rolelistar
+CREATE OR REPLACE FUNCTION public.spkax_rolelistar(
+    p_isactive BOOLEAN DEFAULT NULL
+) RETURNS TABLE (
+    "id" INT,
+    "name" VARCHAR(100),
+    "description" VARCHAR(255),
+    "permissions" JSONB,
+    "isActive" BOOLEAN,
+    "createdAt" TIMESTAMPTZ,
+    "updatedAt" TIMESTAMPTZ
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        r."id",
+        r."name",
+        r."description",
+        r."permissions",
+        r."isActive",
+        r."createdAt",
+        r."updatedAt"
+    FROM public."KAX_Role" r
+    WHERE (p_isactive IS NULL OR r."isActive" = p_isactive)
+    ORDER BY r."id" ASC;
+END;
+$$ LANGUAGE plpgsql;
+
