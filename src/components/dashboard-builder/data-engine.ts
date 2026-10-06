@@ -6,6 +6,10 @@ export interface ProcessedDataResult {
     kpiValue?: number;
     rows?: Record<string, any>[];
     totalCount: number;
+    totalMetricSum?: number;
+    totalTiquetesSum?: number;
+    totalGlobalMetricSum?: number;
+    totalGlobalTiquetesSum?: number;
 }
 
 /**
@@ -72,22 +76,37 @@ export function processWidgetData(rows: Record<string, any>[], widget: WidgetCon
         // Agrupar por dimensión
         const groups = groupByDimension(filteredRows, widget.dimensionColumn, widget.metricColumn, widget.aggregation);
         sortGroups(groups, widget.sortBy, widget.sortOrder);
-        const totalSum = groups.reduce((acc, g) => acc + (g.value > 0 ? g.value : 0), 0);
+        
+        // Totales globales de toda la consulta (100% de la base de datos)
+        const totalGlobalMetricSum = groups.reduce((acc, g) => acc + (g.value > 0 ? g.value : 0), 0);
+        const totalGlobalTiquetesSum = groups.reduce((acc, g) => acc + g.count, 0);
+
+        // Subconjunto según Top N seleccionado (ej: Top 20)
         const sliced = widget.topN && widget.topN > 0 ? groups.slice(0, widget.topN) : groups;
+        const totalMetricSum = sliced.reduce((acc, g) => acc + (g.value > 0 ? g.value : 0), 0);
+        const totalTiquetesSum = sliced.reduce((acc, g) => acc + g.count, 0);
 
         return {
             labels: sliced.map(g => g.label),
             values: sliced.map(g => g.value),
             rows: sliced.map(g => {
-                const pct = totalSum > 0 ? (g.value / totalSum) * 100 : 0;
+                const pct = totalGlobalMetricSum > 0 ? (g.value / totalGlobalMetricSum) * 100 : 0;
+                const pctTkt = totalGlobalTiquetesSum > 0 ? (g.count / totalGlobalTiquetesSum) * 100 : 0;
                 return {
                     [widget.dimensionColumn!]: g.label,
                     [widget.metricColumn || 'conteo']: g.value,
                     registros: g.count,
-                    porcentaje: Math.round(pct * 100) / 100
+                    tiquetes: g.count,
+                    sumatoriaTiquetes: g.count,
+                    porcentaje: Math.round(pct * 100) / 100,
+                    porcentajeTiquetes: Math.round(pctTkt * 100) / 100
                 };
             }),
-            totalCount: groups.length
+            totalCount: groups.length,
+            totalMetricSum,
+            totalTiquetesSum,
+            totalGlobalMetricSum,
+            totalGlobalTiquetesSum
         };
     }
 

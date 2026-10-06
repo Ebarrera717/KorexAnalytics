@@ -16,8 +16,13 @@ import {
     X,
     ChevronDown,
     Layers,
-    Share2
+    Share2,
+    FileSpreadsheet,
+    FileText,
+    Printer
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { processWidgetData } from './data-engine';
 
 interface DashboardViewProps {
     data: Record<string, any>[];
@@ -103,7 +108,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         const initWidgets: WidgetConfig[] = [
             {
                 id: 'kpi_total_count',
-                title: 'Total Registros',
+                title: 'Sumatoria de Tiquetes',
                 type: 'kpi',
                 aggregation: 'COUNT',
                 width: 'quarter',
@@ -349,6 +354,83 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         setWidgets(prev => prev.filter(w => w.id !== widgetId));
     };
 
+    // Exportar todo el Tablero a Excel (Métricas, Gráficos y Tablas dinámicas)
+    const handleExportDashboardExcel = () => {
+        if (!widgets || widgets.length === 0) {
+            alert('No hay widgets para exportar.');
+            return;
+        }
+
+        const wb = XLSX.utils.book_new();
+
+        // 1. Hoja de Resumen Ejecutivo de KPIs
+        const kpis = widgets.filter(w => w.type === 'kpi');
+        const summaryRows: any[] = [];
+        summaryRows.push({ 'TABLERO ANALÍTICO': dashboardName.toUpperCase(), 'FECHA DE EXPORTACIÓN': new Date().toLocaleString('es-CO') });
+        summaryRows.push({}); // Fila en blanco
+        summaryRows.push({ 'INDICADOR / KPI': 'REGISTROS ANALIZADOS', 'VALOR': filteredData.length, 'NOTAS': '100% de la base consultada' });
+
+        kpis.forEach(k => {
+            const proc = processWidgetData(filteredData, k);
+            summaryRows.push({
+                'INDICADOR / KPI': k.title.toUpperCase(),
+                'VALOR': proc.kpiValue || 0,
+                'NOTAS': `${k.aggregation} de ${k.metricColumn || 'registros'}`
+            });
+        });
+
+        const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen_KPIs');
+
+        // 2. Hojas individuales para cada Tabla Dinámica o Gráfico
+        widgets.forEach((w, idx) => {
+            if (w.type === 'kpi') return;
+
+            const proc = processWidgetData(filteredData, w);
+            let sheetData: any[] = [];
+
+            if (w.type === 'pivot_table' && proc.rows && proc.rows.length > 0) {
+                sheetData = proc.rows.map(r => ({
+                    [w.dimensionColumn || 'Dimensión']: r[w.dimensionColumn!],
+                    [`${w.aggregation} (${w.metricColumn || 'Valor'})`]: r[w.metricColumn || 'conteo'],
+                    'Participación (%)': `${r.porcentaje ?? 0}%`,
+                    'Sumatoria Tiquetes': r.sumatoriaTiquetes ?? r.registros ?? 0,
+                    'Part. Tiquetes (%)': `${r.porcentajeTiquetes ?? 0}%`
+                }));
+
+                // Fila de Total
+                sheetData.push({
+                    [w.dimensionColumn || 'Dimensión']: `TOTAL (${proc.totalCount} grupos)`,
+                    [`${w.aggregation} (${w.metricColumn || 'Valor'})`]: proc.totalGlobalMetricSum ?? proc.totalMetricSum ?? 0,
+                    'Participación (%)': '100.00%',
+                    'Sumatoria Tiquetes': proc.totalGlobalTiquetesSum ?? proc.totalTiquetesSum ?? 0,
+                    'Part. Tiquetes (%)': '100.00%'
+                });
+            } else if (proc.labels && proc.labels.length > 0) {
+                sheetData = proc.labels.map((lbl, i) => ({
+                    [w.dimensionColumn || 'Categoría']: lbl,
+                    [`${w.aggregation} (${w.metricColumn || 'Valor'})`]: proc.values[i] || 0
+                }));
+            }
+
+            if (sheetData.length > 0) {
+                const ws = XLSX.utils.json_to_sheet(sheetData);
+                // Nombre de hoja seguro (máx 31 caracteres)
+                const safeTitle = (w.title.replace(/[\/\\?*:[\]]/g, '').trim() || `Widget_${idx + 1}`).substring(0, 30);
+                XLSX.utils.book_append_sheet(wb, ws, safeTitle);
+            }
+        });
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        const safeDashName = dashboardName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+        XLSX.writeFile(wb, `Tablero_${safeDashName}_${dateStr}.xlsx`);
+    };
+
+    // Imprimir o Exportar a PDF usando vista optimizada para impresión de navegador
+    const handleExportDashboardPDF = () => {
+        window.print();
+    };
+
     return (
         <div className="space-y-4">
             {/* Barra superior de Controles del Tablero */}
@@ -435,6 +517,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         title="Guardar como un nuevo tablero con otro nombre"
                     >
                         <span>Guardar Como...</span>
+                    </button>
+
+                    <div className="h-4 w-px bg-slate-800 mx-1 hidden sm:block" />
+
+                    {/* Botones de Exportación de Tablero Permanente */}
+                    <button
+                        onClick={handleExportDashboardExcel}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-slate-950 font-black text-xs flex items-center space-x-1.5 transition shadow-sm cursor-pointer"
+                        title="Exportar métricas y tablas del tablero analítico a archivo Excel (.xlsx)"
+                    >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        <span>Excel</span>
+                    </button>
+
+                    <button
+                        onClick={handleExportDashboardPDF}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-rose-300 font-bold text-xs flex items-center space-x-1.5 transition shadow-sm cursor-pointer"
+                        title="Imprimir o guardar este tablero analítico en PDF"
+                    >
+                        <FileText className="w-3.5 h-3.5 text-rose-400" />
+                        <span>PDF</span>
                     </button>
 
                     {saveStatus && (

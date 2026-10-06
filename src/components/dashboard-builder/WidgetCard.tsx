@@ -275,26 +275,29 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                             {formatMetricNumber(processed.kpiValue || 0)}
                         </div>
                         <div className="text-xs text-slate-400 mt-1 font-medium">
-                            {processed.totalCount} registros evaluados
+                            {formatMetricNumber(processed.totalCount)} {widget.title.toLowerCase().includes('tiquete') ? 'tiquetes contabilizados' : 'registros evaluados'}
                         </div>
                     </div>
                 ) : widget.type === 'pivot_table' ? (
-                    <div className="overflow-x-auto max-h-[220px] rounded border border-slate-800/80">
+                    <div className="overflow-x-auto max-h-[300px] rounded border border-slate-800/80 shadow-inner">
                         <table className="w-full text-left text-xs text-slate-300">
-                            <thead className="bg-slate-950/80 text-[10px] uppercase tracking-wider text-slate-400 sticky top-0">
+                            <thead className="bg-slate-950 text-[10px] uppercase tracking-wider text-slate-400 sticky top-0 z-10 border-b border-slate-800">
                                 <tr>
-                                    <th className="px-3 py-2">{widget.dimensionColumn || 'Dimensión'}</th>
-                                    <th className="px-3 py-2 text-right">
+                                    <th className="px-3 py-2 font-bold text-slate-300">{widget.dimensionColumn || 'Dimensión'}</th>
+                                    <th className="px-3 py-2 text-right font-bold text-cyan-300">
                                         {widget.aggregation} ({widget.metricColumn || 'Valor'})
                                     </th>
-                                    <th className="px-3 py-2 text-right">Participación (%)</th>
-                                    <th className="px-3 py-2 text-right">Registros</th>
+                                    <th className="px-3 py-2 text-right font-semibold text-slate-300">Participación (%)</th>
+                                    <th className="px-3 py-2 text-right font-bold text-amber-300 bg-amber-500/10 border-l border-r border-amber-500/20">
+                                        Sumatoria Tiquetes
+                                    </th>
+                                    <th className="px-3 py-2 text-right font-semibold text-slate-300">Part. Tiquetes (%)</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800/60">
                                 {processed.rows && processed.rows.length > 0 ? (
                                     processed.rows.map((row, idx) => (
-                                        <tr key={idx} className="hover:bg-slate-800/40">
+                                        <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
                                             <td className="px-3 py-1.5 font-medium text-slate-200">
                                                 {row[widget.dimensionColumn!]}
                                             </td>
@@ -314,19 +317,53 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-3 py-1.5 text-right font-mono text-slate-400">
-                                                {row.registros}
+                                            <td className="px-3 py-1.5 text-right font-mono text-amber-300 font-bold bg-amber-500/5 border-l border-r border-amber-500/15">
+                                                {formatMetricNumber(row.sumatoriaTiquetes ?? row.registros)}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-right font-mono">
+                                                <div className="flex items-center justify-end space-x-1.5">
+                                                    <div className="w-12 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                                        <div
+                                                            className="bg-gradient-to-r from-amber-500 to-yellow-400 h-full rounded-full"
+                                                            style={{ width: `${Math.min(row.porcentajeTiquetes || 0, 100)}%` }}
+                                                        />
+                                                    </div>
+                                                    <span className="text-amber-400 font-bold text-[11px]">
+                                                        {row.porcentajeTiquetes !== undefined ? `${row.porcentajeTiquetes.toFixed(2)}%` : '0%'}
+                                                    </span>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={4} className="text-center py-4 text-slate-500">
+                                        <td colSpan={5} className="text-center py-6 text-slate-500">
                                             Sin datos disponibles
                                         </td>
                                     </tr>
                                 )}
                             </tbody>
+                            {processed.rows && processed.rows.length > 0 && (
+                                <tfoot className="bg-slate-950 font-bold text-slate-100 border-t-2 border-slate-700 sticky bottom-0 z-10 text-[11px]">
+                                    <tr className="bg-slate-950">
+                                        <td className="px-3 py-2 text-cyan-400 font-black">
+                                            TOTAL ({processed.totalCount} {processed.totalCount === 1 ? 'grupo' : 'grupos'})
+                                        </td>
+                                        <td className="px-3 py-2 text-right font-mono text-cyan-300 font-black text-xs">
+                                            {formatMetricNumber(processed.totalGlobalMetricSum ?? processed.totalMetricSum ?? 0)}
+                                        </td>
+                                        <td className="px-3 py-2 text-right font-mono text-emerald-400 font-bold">
+                                            100.00%
+                                        </td>
+                                        <td className="px-3 py-2 text-right font-mono text-amber-300 font-black bg-amber-500/10 border-l border-r border-amber-500/20 text-xs">
+                                            {formatMetricNumber(processed.totalGlobalTiquetesSum ?? processed.totalTiquetesSum ?? 0)}
+                                        </td>
+                                        <td className="px-3 py-2 text-right font-mono text-amber-400 font-bold">
+                                            100.00%
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            )}
                         </table>
                     </div>
                 ) : (
