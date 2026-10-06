@@ -11,7 +11,8 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const SECRET_KEY = process.env.KAX_LICENSE_SECRET || process.env.KAX_SECRET_KEY || 'Korex_Analytics_Enterprise_Secret_Key_2026_AES256';
+const SECRET_KEY = process.env.LICENSE_SECRET || process.env.KAX_LICENSE_SECRET || 'Korex_Master_License_Secret_Key_2026_Secure';
+
 
 function generarLicenciaKAX(cliente, nit, fechaExpiracion) {
     if (!cliente || !nit || !fechaExpiracion) {

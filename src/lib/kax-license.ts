@@ -2,7 +2,13 @@ import crypto from 'crypto';
 import mssql from 'mssql';
 import { executeInternalProcedure } from './kax-db';
 
-const SECRET_KEY = process.env.KAX_LICENSE_SECRET || process.env.KAX_SECRET_KEY || 'Korex_Analytics_Enterprise_Secret_Key_2026_AES256';
+const SECRET_KEYS = [
+    process.env.LICENSE_SECRET,
+    process.env.KAX_LICENSE_SECRET,
+    process.env.KAX_SECRET_KEY,
+    'Korex_Master_License_Secret_Key_2026_Secure',
+    'Korex_Analytics_Enterprise_Secret_Key_2026_AES256'
+].filter(Boolean) as string[];
 
 export interface LicensePayload {
     client: string;
@@ -38,24 +44,31 @@ export function verifyLicenseKey(licenseKey: string): LicenseVerificationResult 
 
     const parts = licenseKey.trim().split('.');
     if (parts.length !== 3 || parts[0] !== 'KOR1') {
-        return { isValid: false, error: 'Formato de clave de licencia desconocido o incompatible con Korex Analytics' };
+        return { isValid: false, error: 'Formato de clave de licencia desconocido o incompatible con Korex' };
     }
 
     const [, payloadBase64, signature] = parts;
 
     try {
-        const expectedSignature = crypto
-            .createHmac('sha256', SECRET_KEY)
-            .update(payloadBase64)
-            .digest('hex');
-
-        // Comparación segura en tiempo constante contra timing attacks
+        let isSignatureValid = false;
         const sigBuf = Buffer.from(signature);
-        const expBuf = Buffer.from(expectedSignature);
 
-        if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+        for (const secret of SECRET_KEYS) {
+            const expectedSig = crypto
+                .createHmac('sha256', secret)
+                .update(payloadBase64)
+                .digest('hex');
+            const expBuf = Buffer.from(expectedSig);
+            if (sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf)) {
+                isSignatureValid = true;
+                break;
+            }
+        }
+
+        if (!isSignatureValid) {
             return { isValid: false, error: 'La firma criptográfica de la clave de licencia es inválida o fue alterada' };
         }
+
 
         const decodedJson = Buffer.from(payloadBase64, 'base64url').toString('utf8');
         const rawPayload = JSON.parse(decodedJson);
@@ -178,19 +191,36 @@ export async function applyLicense(
 
     const { client, nit, expirationDate, issuedDate } = verification.payload;
 
-    if (clientNameInput && clientNameInput.trim().toLowerCase() !== client.trim().toLowerCase()) {
+    if (!clientNameInput || !clientNameInput.trim()) {
         return {
             success: false,
-            message: `El nombre del cliente proporcionado (${clientNameInput}) no coincide con el registrado en la licencia (${client}).`
+            message: 'Debe ingresar el Nombre o Razón Social del Cliente.'
         };
     }
 
-    if (nitInput && nitInput.trim() !== nit.trim()) {
+    if (!nitInput || !nitInput.trim()) {
         return {
             success: false,
-            message: `El NIT proporcionado (${nitInput}) no coincide con el registrado en la licencia (${nit}).`
+            message: 'Debe ingresar el NIT o Cédula del Cliente.'
         };
     }
+
+    const clean = (s: string) => s.toLowerCase().replace(/[\s\.\-_]/g, '').trim();
+
+    if (clean(clientNameInput) !== clean(client)) {
+        return {
+            success: false,
+            message: `El Nombre del Cliente ingresado ("${clientNameInput.trim()}") no coincide con el registrado en la clave de licencia ("${client}").`
+        };
+    }
+
+    if (clean(nitInput) !== clean(nit)) {
+        return {
+            success: false,
+            message: `El NIT ingresado ("${nitInput.trim()}") no coincide con el registrado en la clave de licencia ("${nit}").`
+        };
+    }
+
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
