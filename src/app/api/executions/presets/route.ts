@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         const res = await pool.request()
             .input('procedureId', mssql.Int, Number(procedureId))
             .query(`
-                SELECT id, procedureId, name, description, filterValues, filterConfig, columnConfigs, selectedTotals
+                SELECT id, procedureId, name, description, filterValues, filterConfig, columnConfigs, selectedTotals, dashboardsConfig
                 FROM dbo.KAX_ExecutionPreset
                 WHERE procedureId = @procedureId
                 ORDER BY name ASC
@@ -51,7 +51,8 @@ export async function GET(req: NextRequest) {
             filterValues: typeof row.filterValues === 'string' ? JSON.parse(row.filterValues) : (row.filterValues || {}),
             filterConfig: typeof row.filterConfig === 'string' ? JSON.parse(row.filterConfig) : (row.filterConfig || {}),
             columnConfigs: typeof row.columnConfigs === 'string' ? JSON.parse(row.columnConfigs) : (row.columnConfigs || []),
-            selectedTotals: typeof row.selectedTotals === 'string' ? JSON.parse(row.selectedTotals) : (row.selectedTotals || [])
+            selectedTotals: typeof row.selectedTotals === 'string' ? JSON.parse(row.selectedTotals) : (row.selectedTotals || []),
+            dashboardsConfig: typeof row.dashboardsConfig === 'string' ? JSON.parse(row.dashboardsConfig) : (row.dashboardsConfig || null)
         }));
 
         return NextResponse.json(presets);
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
     let pool: mssql.ConnectionPool | null = null;
     try {
         const body = await req.json();
-        const { id, name, procedureId, description, filterValues, filterConfig, columnConfigs, selectedTotals, userId } = body;
+        const { id, name, procedureId, description, filterValues, filterConfig, columnConfigs, selectedTotals, dashboardsConfig, userId } = body;
 
         if (!name || !procedureId) {
             return NextResponse.json({ message: 'El nombre y el ID del procedimiento son requeridos.' }, { status: 400 });
@@ -84,17 +85,34 @@ export async function POST(req: NextRequest) {
         const fCfg = JSON.stringify(filterConfig || {});
         const cCfg = JSON.stringify(columnConfigs || []);
         const sTot = JSON.stringify(selectedTotals || []);
+        const dCfg = dashboardsConfig !== undefined && dashboardsConfig !== null ? JSON.stringify(dashboardsConfig) : null;
 
         if (id) {
-            await pool.request()
+            const updateReq = pool.request()
                 .input('id', mssql.Int, Number(id))
                 .input('name', mssql.NVarChar, name)
                 .input('description', mssql.NVarChar, description || '')
                 .input('filterValues', mssql.NVarChar, fVal)
                 .input('filterConfig', mssql.NVarChar, fCfg)
                 .input('columnConfigs', mssql.NVarChar, cCfg)
-                .input('selectedTotals', mssql.NVarChar, sTot)
-                .query(`
+                .input('selectedTotals', mssql.NVarChar, sTot);
+
+            if (dCfg !== null) {
+                updateReq.input('dashboardsConfig', mssql.NVarChar(mssql.MAX), dCfg);
+                await updateReq.query(`
+                    UPDATE dbo.KAX_ExecutionPreset
+                    SET name = @name,
+                        description = @description,
+                        filterValues = @filterValues,
+                        filterConfig = @filterConfig,
+                        columnConfigs = @columnConfigs,
+                        selectedTotals = @selectedTotals,
+                        dashboardsConfig = @dashboardsConfig,
+                        updatedAt = SYSUTCDATETIME()
+                    WHERE id = @id
+                `);
+            } else {
+                await updateReq.query(`
                     UPDATE dbo.KAX_ExecutionPreset
                     SET name = @name,
                         description = @description,
@@ -105,10 +123,39 @@ export async function POST(req: NextRequest) {
                         updatedAt = SYSUTCDATETIME()
                     WHERE id = @id
                 `);
+            }
 
             await pool.close();
-            return NextResponse.json({ id: Number(id), name, procedureId, description, filterValues, filterConfig, columnConfigs, selectedTotals });
+            return NextResponse.json({ id: Number(id), name, procedureId, description, filterValues, filterConfig, columnConfigs, selectedTotals, dashboardsConfig });
         } else {
+            // Si es un nuevo preset y no se especificó dashboardsConfig, heredar automáticamente los tableros del procedimiento
+            let finalDashboardsStr = dCfg;
+            if (!finalDashboardsStr) {
+                const otherPreset = await pool.request()
+                    .input('pId', mssql.Int, Number(procedureId))
+                    .query(`SELECT TOP 1 dashboardsConfig FROM dbo.KAX_ExecutionPreset WHERE procedureId = @pId AND dashboardsConfig IS NOT NULL AND dashboardsConfig <> ''`);
+                if (otherPreset.recordset.length > 0) {
+                    finalDashboardsStr = otherPreset.recordset[0].dashboardsConfig;
+                } else {
+                    const baseRes = await pool.request()
+                        .input('pId', mssql.Int, Number(procedureId))
+                        .query(`SELECT id, procedureId, userId, name, description, layoutConfig, widgetsConfig, isDefault FROM dbo.KAX_Dashboard WHERE procedureId = @pId`);
+                    if (baseRes.recordset.length > 0) {
+                        const mapped = baseRes.recordset.map(r => ({
+                            id: r.id,
+                            procedureId: r.procedureId,
+                            userId: r.userId,
+                            name: r.name,
+                            description: r.description,
+                            layoutConfig: typeof r.layoutConfig === 'string' ? JSON.parse(r.layoutConfig) : r.layoutConfig,
+                            widgetsConfig: typeof r.widgetsConfig === 'string' ? JSON.parse(r.widgetsConfig) : (r.widgetsConfig || []),
+                            isDefault: Boolean(r.isDefault)
+                        }));
+                        finalDashboardsStr = JSON.stringify(mapped);
+                    }
+                }
+            }
+
             const insertRes = await pool.request()
                 .input('procedureId', mssql.Int, Number(procedureId))
                 .input('userId', mssql.Int, Number(validUserId))
@@ -118,21 +165,22 @@ export async function POST(req: NextRequest) {
                 .input('filterConfig', mssql.NVarChar, fCfg)
                 .input('columnConfigs', mssql.NVarChar, cCfg)
                 .input('selectedTotals', mssql.NVarChar, sTot)
+                .input('dashboardsConfig', mssql.NVarChar(mssql.MAX), finalDashboardsStr)
                 .query(`
                     INSERT INTO dbo.KAX_ExecutionPreset (
                         procedureId, userId, name, description, filterValues, filterConfig,
-                        columnConfigs, selectedTotals, createdAt, updatedAt
+                        columnConfigs, selectedTotals, dashboardsConfig, createdAt, updatedAt
                     )
                     OUTPUT INSERTED.id
                     VALUES (
                         @procedureId, @userId, @name, @description, @filterValues, @filterConfig,
-                        @columnConfigs, @selectedTotals, SYSUTCDATETIME(), SYSUTCDATETIME()
+                        @columnConfigs, @selectedTotals, @dashboardsConfig, SYSUTCDATETIME(), SYSUTCDATETIME()
                     )
                 `);
 
             const newId = insertRes.recordset[0]?.id;
             await pool.close();
-            return NextResponse.json({ id: newId, name, procedureId, description, filterValues, filterConfig, columnConfigs, selectedTotals });
+            return NextResponse.json({ id: newId, name, procedureId, description, filterValues, filterConfig, columnConfigs, selectedTotals, dashboardsConfig: finalDashboardsStr ? JSON.parse(finalDashboardsStr) : [] });
         }
     } catch (err: any) {
         if (pool) {

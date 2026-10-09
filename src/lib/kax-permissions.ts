@@ -4,11 +4,9 @@ export interface RolePermissionsMatrix {
 }
 
 export const KAX_MODULE_CATALOG: { code: string; label: string; description: string }[] = [
-    { code: 'dashboard', label: 'Tableros Analíticos', description: 'Visualización y gestión de dashboards y widgets interactivos' },
     { code: 'executions', label: 'Ejecuciones de SPs', description: 'Ejecución en tiempo real de consultas y procedimientos almacenados' },
     { code: 'sqlserver', label: 'Servidores y Perfiles SQL', description: 'Configuración y prueba de conexiones a instancias de bases de datos' },
     { code: 'parameters', label: 'Parámetros del Sistema', description: 'Ajustes globales y configuración por usuario' },
-    { code: 'history', label: 'Trazabilidad y Auditoría', description: 'Registro histórico de ejecuciones, tiempos y logs del sistema' },
     { code: 'users', label: 'Usuarios y Seguridad', description: 'Gestión de cuentas de usuario, roles y niveles de acceso' },
     { code: 'license', label: 'Licenciamiento', description: 'Estado, vigencia y activación de la licencia del software' }
 ];

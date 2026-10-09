@@ -52,6 +52,12 @@ CREATE PROCEDURE [dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]
 		,@fecha_llegada_fin			SMALLDATETIME	= NULL -- Filtro Llegada: Solo Año-Mes-Día (Hasta)
 		,@id_TiposDocumento			VARCHAR(8000)	= NULL -- Filtro Tipos de Documento por ID (ej: '303', '1,303')
 		,@cd_TipoDocumento			VARCHAR(8000)	= NULL -- Filtro Tipos de Documento por Código (ej: 'EMD', 'TBS,TKN')
+		,@cd_FareBasis				VARCHAR(8000)	= NULL -- Filtro Fare Basis
+		,@MostrarSoloRevisados		VARCHAR(2)		= NULL -- Filtro Revisados: 'SI' (solo revisados), 'NO' (solo no revisados)
+		,@Revisado					VARCHAR(2)		= NULL -- Alias alternativo para @MostrarSoloRevisados
+		,@cd_PaisOrigen				VARCHAR(1000)	= NULL -- Filtro País Origen: ISO, Nombre o ID del país de la primera ciudad
+		,@cd_PaisDestino			VARCHAR(1000)	= NULL -- Filtro País Destino: ISO, Nombre o ID del país de la última ciudad
+		,@cd_PaisItinerario			VARCHAR(1000)	= NULL -- Filtro País Itinerario: ISO, Nombre o ID del país en cualquier ciudad de la ruta
 
 AS 
 BEGIN
@@ -145,6 +151,71 @@ BEGIN
 	SET @cd_CiudadOrigen = LTRIM(RTRIM(NULLIF(@cd_CiudadOrigen, '')))
 	SET @cd_SegundaCiudad = LTRIM(RTRIM(NULLIF(@cd_SegundaCiudad, '')))
 	SET @cd_CiudadItinerario = LTRIM(RTRIM(NULLIF(@cd_CiudadItinerario, '')))
+
+	-- Limpieza y configuración de nuevos filtros (Fare Basis, Revisados, Países)
+	IF @MostrarSoloRevisados IS NULL AND @Revisado IS NOT NULL
+		SET @MostrarSoloRevisados = @Revisado;
+
+	SET @MostrarSoloRevisados = UPPER(LTRIM(RTRIM(NULLIF(@MostrarSoloRevisados, ''))));
+	SET @cd_FareBasis = LTRIM(RTRIM(NULLIF(@cd_FareBasis, '')));
+	SET @cd_PaisOrigen = LTRIM(RTRIM(NULLIF(@cd_PaisOrigen, '')));
+	SET @cd_PaisDestino = LTRIM(RTRIM(NULLIF(@cd_PaisDestino, '')));
+	SET @cd_PaisItinerario = LTRIM(RTRIM(NULLIF(@cd_PaisItinerario, '')));
+
+	-- Tablas Temporales para filtros de País y Fare Basis (Indexadas para máxima velocidad)
+	IF @cd_FareBasis IS NOT NULL
+	BEGIN
+		CREATE TABLE #TempFareBasis (cd_farebasis VARCHAR(100) PRIMARY KEY);
+		INSERT INTO #TempFareBasis (cd_farebasis)
+		SELECT DISTINCT UPPER(LTRIM(RTRIM(codigo)))
+		FROM dbo.fnSplit(@cd_FareBasis, ',', 0, 1)
+		WHERE LTRIM(RTRIM(codigo)) <> '';
+	END
+
+	IF @cd_PaisOrigen IS NOT NULL
+	BEGIN
+		CREATE TABLE #TempIataOrigen (cd_Iata VARCHAR(10) PRIMARY KEY);
+		INSERT INTO #TempIataOrigen (cd_Iata)
+		SELECT DISTINCT UPPER(LTRIM(RTRIM(c.cd_Iata)))
+		FROM dbo.Ciudades c WITH(NOLOCK)
+		INNER JOIN dbo.Paises p WITH(NOLOCK) ON p.id = c.id_paises
+		WHERE c.cd_Iata IS NOT NULL AND LTRIM(RTRIM(c.cd_Iata)) <> ''
+		  AND (
+			  p.cd_codigo IN (SELECT UPPER(LTRIM(RTRIM(codigo))) FROM dbo.fnSplit(@cd_PaisOrigen, ',', 0, 1))
+			  OR UPPER(LTRIM(RTRIM(p.ds_nombre))) IN (SELECT UPPER(LTRIM(RTRIM(codigo))) FROM dbo.fnSplit(@cd_PaisOrigen, ',', 0, 1))
+			  OR (ISNUMERIC(REPLACE(@cd_PaisOrigen, ',', '')) = 1 AND p.id IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit(@cd_PaisOrigen, ',', 0, 1) WHERE ISNUMERIC(codigo) = 1))
+		  );
+	END
+
+	IF @cd_PaisDestino IS NOT NULL
+	BEGIN
+		CREATE TABLE #TempIataDestino (cd_Iata VARCHAR(10) PRIMARY KEY);
+		INSERT INTO #TempIataDestino (cd_Iata)
+		SELECT DISTINCT UPPER(LTRIM(RTRIM(c.cd_Iata)))
+		FROM dbo.Ciudades c WITH(NOLOCK)
+		INNER JOIN dbo.Paises p WITH(NOLOCK) ON p.id = c.id_paises
+		WHERE c.cd_Iata IS NOT NULL AND LTRIM(RTRIM(c.cd_Iata)) <> ''
+		  AND (
+			  p.cd_codigo IN (SELECT UPPER(LTRIM(RTRIM(codigo))) FROM dbo.fnSplit(@cd_PaisDestino, ',', 0, 1))
+			  OR UPPER(LTRIM(RTRIM(p.ds_nombre))) IN (SELECT UPPER(LTRIM(RTRIM(codigo))) FROM dbo.fnSplit(@cd_PaisDestino, ',', 0, 1))
+			  OR (ISNUMERIC(REPLACE(@cd_PaisDestino, ',', '')) = 1 AND p.id IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit(@cd_PaisDestino, ',', 0, 1) WHERE ISNUMERIC(codigo) = 1))
+		  );
+	END
+
+	IF @cd_PaisItinerario IS NOT NULL
+	BEGIN
+		CREATE TABLE #TempIataItinerario (cd_Iata VARCHAR(10) PRIMARY KEY);
+		INSERT INTO #TempIataItinerario (cd_Iata)
+		SELECT DISTINCT UPPER(LTRIM(RTRIM(c.cd_Iata)))
+		FROM dbo.Ciudades c WITH(NOLOCK)
+		INNER JOIN dbo.Paises p WITH(NOLOCK) ON p.id = c.id_paises
+		WHERE c.cd_Iata IS NOT NULL AND LTRIM(RTRIM(c.cd_Iata)) <> ''
+		  AND (
+			  p.cd_codigo IN (SELECT UPPER(LTRIM(RTRIM(codigo))) FROM dbo.fnSplit(@cd_PaisItinerario, ',', 0, 1))
+			  OR UPPER(LTRIM(RTRIM(p.ds_nombre))) IN (SELECT UPPER(LTRIM(RTRIM(codigo))) FROM dbo.fnSplit(@cd_PaisItinerario, ',', 0, 1))
+			  OR (ISNUMERIC(REPLACE(@cd_PaisItinerario, ',', '')) = 1 AND p.id IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit(@cd_PaisItinerario, ',', 0, 1) WHERE ISNUMERIC(codigo) = 1))
+		  );
+	END
 
 	-- Procesamiento optimizado de Filtro Tipos de Documento
 	DECLARE @id_TiposDocumentoFiltro VARCHAR(8000) = ''
@@ -536,6 +607,72 @@ BEGIN
 		)'
 	END
 
+	-- 4. País Origen (País de la primera ciudad antes del primer '/')
+	IF @cd_PaisOrigen IS NOT NULL
+	BEGIN
+		SET @FiltroRutaSQL = @FiltroRutaSQL + '
+		AND (
+			(F.Servicio IS NOT NULL AND F.Servicio <> '''' AND UPPER(
+				CASE WHEN CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) > 0 
+					 THEN SUBSTRING(LTRIM(RTRIM(F.Servicio)), 1, CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) - 1)
+					 ELSE LTRIM(RTRIM(F.Servicio)) END
+			) IN (SELECT cd_Iata FROM #TempIataOrigen))
+		)'
+	END
+
+	-- 5. País Destino (País de la última ciudad después del último '/')
+	IF @cd_PaisDestino IS NOT NULL
+	BEGIN
+		SET @FiltroRutaSQL = @FiltroRutaSQL + '
+		AND (
+			(F.Servicio IS NOT NULL AND F.Servicio <> '''' AND UPPER(
+				CASE WHEN CHARINDEX(''/'', LTRIM(RTRIM(F.Servicio))) > 0 
+					 THEN REVERSE(SUBSTRING(REVERSE(LTRIM(RTRIM(F.Servicio))), 1, CHARINDEX(''/'', REVERSE(LTRIM(RTRIM(F.Servicio)))) - 1))
+					 ELSE LTRIM(RTRIM(F.Servicio)) END
+			) IN (SELECT cd_Iata FROM #TempIataDestino))
+		)'
+	END
+
+	-- 6. País en cualquier parte del Itinerario
+	IF @cd_PaisItinerario IS NOT NULL
+	BEGIN
+		SET @FiltroRutaSQL = @FiltroRutaSQL + '
+		AND (
+			(F.Servicio IS NOT NULL AND F.Servicio <> '''' AND EXISTS (
+				SELECT 1 FROM #TempIataItinerario pItin
+				WHERE ''/'' + UPPER(LTRIM(RTRIM(F.Servicio))) + ''/'' LIKE ''%/'' + pItin.cd_Iata + ''/%''
+			))
+		)'
+	END
+
+	-- Filtro Fare Basis (Búsqueda ultrarrápida indexada en Tiquetes_Itinerarios)
+	DECLARE @FiltroFareBasisSQL VARCHAR(MAX) = ''
+	IF @cd_FareBasis IS NOT NULL
+	BEGIN
+		SET @FiltroFareBasisSQL = '
+		AND (
+			tkt.id IS NOT NULL AND EXISTS (
+				SELECT 1 FROM dbo.Tiquetes_Itinerarios tiFB WITH(NOLOCK)
+				WHERE tiFB.id_Tiquetes = tkt.id 
+				  AND EXISTS (
+					  SELECT 1 FROM #TempFareBasis fbFiltro
+					  WHERE UPPER(LTRIM(RTRIM(tiFB.cd_farebasis))) LIKE ''%'' + fbFiltro.cd_farebasis + ''%''
+				  )
+			)
+		)'
+	END
+
+	-- Filtro Revisados (Tiquetes revisados con cd_tktrevisado)
+	DECLARE @FiltroRevisadosSQL VARCHAR(MAX) = ''
+	IF @MostrarSoloRevisados = 'SI'
+	BEGIN
+		SET @FiltroRevisadosSQL = ' AND (F.cd_tktrevisado IS NOT NULL AND LTRIM(RTRIM(F.cd_tktrevisado)) <> '''')'
+	END
+	ELSE IF @MostrarSoloRevisados = 'NO'
+	BEGIN
+		SET @FiltroRevisadosSQL = ' AND (F.cd_tktrevisado IS NULL OR LTRIM(RTRIM(F.cd_tktrevisado)) = '''')'
+	END
+
 	--------------------------------------------------------------------------------------------------
 	-- Construcción de Consultas por Subbloques (Modular y Condicional)
 	--------------------------------------------------------------------------------------------------
@@ -553,6 +690,7 @@ BEGIN
 			,ds_cliente
 			,f.cd_vendedor
 			,v.NOMBVENDE as ''ds_vendedor''
+			,ISNULL(V.Identificacion, '''') as ''Identificacion_vendedor''
 			,V.telefono as ''Tel_vendedor''  
 			,V.Direccion as ''Dir_vendedor''  
 			,V.Email as ''Correo_vendedor''  
@@ -636,7 +774,59 @@ BEGIN
 								else dbo.fnza_TC_Items(3, id_item) end
 			,GrEmpresarial = CASE WHEN ISNULL(CodigoGrEmpresarial,'''') <> '''' THEN GR.Nombre ELSE CL.RAZONCIAL END
 			,tp.ds_nombre AS ''TipoVenta''
-			,Vuelo = case when id_ConceptoFacturacion in (1,2) then dbo.Fnza_NumeroVueloTkt (F.Id,NULL,id_item) ELSE NULL END
+			,Vuelo = case when id_ConceptoFacturacion in (1,2) then 
+						STUFF((
+							SELECT '' - '' + RTRIM(ISNULL(ti2.cd_aero_siglas, '''')) + RTRIM(ti2.ds_NumVuelo)
+							FROM (
+								SELECT MIN(ti2.orden) as orden, ti2.cd_aero_siglas, ti2.ds_NumVuelo
+								FROM dbo.Tiquetes_Itinerarios ti2 WITH(NOLOCK)
+								WHERE ti2.id_Tiquetes = tkt.id AND ti2.ds_NumVuelo IS NOT NULL AND LTRIM(RTRIM(ti2.ds_NumVuelo)) <> ''''
+								GROUP BY ti2.cd_aero_siglas, ti2.ds_NumVuelo
+							) ti2
+							ORDER BY ti2.orden
+							FOR XML PATH('''')
+						), 1, 3, '''')
+					ELSE NULL END
+			,Aerolinea = case when id_ConceptoFacturacion in (1,2) then 
+							STUFF((
+								SELECT '' - '' + RTRIM(ti2.cd_aero_siglas)
+								FROM (
+									SELECT DISTINCT ti2.orden, RTRIM(ti2.cd_aero_siglas) as cd_aero_siglas
+									FROM dbo.Tiquetes_Itinerarios ti2 WITH(NOLOCK)
+									WHERE ti2.id_Tiquetes = tkt.id 
+									  AND ti2.cd_aero_siglas IS NOT NULL 
+									  AND LTRIM(RTRIM(ti2.cd_aero_siglas)) <> ''''
+								) ti2
+								ORDER BY ti2.orden
+								FOR XML PATH('''')
+							), 1, 3, '''')
+						ELSE NULL END
+			,CombinacionAerolinea = case when id_ConceptoFacturacion in (1,2) AND tkt.id IS NOT NULL then
+										case when (
+											SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+											FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+											WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+										) > 1 then ''Combinada''
+										when (
+											SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+											FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+											WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+										) = 1 then ''Misma Aerolínea''
+										else '''' end
+									else '''' end
+			,OrdenAerolinea = case when id_ConceptoFacturacion in (1,2) AND tkt.id IS NOT NULL then
+								case when (
+									SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+									FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+									WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+								) = 1 then 0
+								when (
+									SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+									FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+									WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+								) > 1 then 1
+								else 2 end
+							else 2 end
 			,Referido= dbo.fnza_ReferidosItem (f.tipo,id_item,in_TipoItem)
 			,F.id_item as ''iditems''
 			,F.in_TipoItem
@@ -730,7 +920,7 @@ BEGIN
 			'+CASE WHEN ISNULL(@ds_feeocultos,'')<>'' THEN 'AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('''+@ds_feeocultos+''','','',0,1)) OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'AND (C.cd_codigo NOT IN(''CAN'',''CAI'',''CEM'') OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN ISNULL(@id_TiposDocumentoFiltro,'')<>'' THEN 'AND (tkt.id_TiposDocumento IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit('''+@id_TiposDocumentoFiltro+''','','',0,1)))' ELSE '' END+'
-			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL
+			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL +' '+ @FiltroFareBasisSQL +' '+ @FiltroRevisadosSQL
 	
 	-- Subbloque Remisiones (Solo se compila y ejecuta si se solicitaron remisiones)
 	DECLARE @QueryRemisiones VARCHAR(MAX) = ''
@@ -752,6 +942,7 @@ BEGIN
 			,ds_cliente
 			,f.cd_vendedor
 			,v.NOMBVENDE as ''ds_vendedor''
+			,ISNULL(V.Identificacion, '''') as ''Identificacion_vendedor''
 			,V.telefono as ''Tel_vendedor''  
 			,V.Direccion as ''Dir_vendedor''  
 			,V.Email as ''Correo_vendedor'' 
@@ -833,7 +1024,59 @@ BEGIN
 								else dbo.fnza_TC_Items(3, id_item) end
 			,GrEmpresarial = CASE WHEN ISNULL(CodigoGrEmpresarial,'''') <> '''' THEN GR.Nombre ELSE CL.RAZONCIAL END
 			,tp.ds_nombre AS ''TipoVenta''
-			,Vuelo = case when id_ConceptoFacturacion in (1,2) then dbo.Fnza_NumeroVueloTkt (NULL,F.Id,id_item) ELSE NULL END
+			,Vuelo = case when id_ConceptoFacturacion in (1,2) then 
+						STUFF((
+							SELECT '' - '' + RTRIM(ISNULL(ti2.cd_aero_siglas, '''')) + RTRIM(ti2.ds_NumVuelo)
+							FROM (
+								SELECT MIN(ti2.orden) as orden, ti2.cd_aero_siglas, ti2.ds_NumVuelo
+								FROM dbo.Tiquetes_Itinerarios ti2 WITH(NOLOCK)
+								WHERE ti2.id_Tiquetes = tkt.id AND ti2.ds_NumVuelo IS NOT NULL AND LTRIM(RTRIM(ti2.ds_NumVuelo)) <> ''''
+								GROUP BY ti2.cd_aero_siglas, ti2.ds_NumVuelo
+							) ti2
+							ORDER BY ti2.orden
+							FOR XML PATH('''')
+						), 1, 3, '''')
+					ELSE NULL END
+			,Aerolinea = case when id_ConceptoFacturacion in (1,2) then 
+							STUFF((
+								SELECT '' - '' + RTRIM(ti2.cd_aero_siglas)
+								FROM (
+									SELECT DISTINCT ti2.orden, RTRIM(ti2.cd_aero_siglas) as cd_aero_siglas
+									FROM dbo.Tiquetes_Itinerarios ti2 WITH(NOLOCK)
+									WHERE ti2.id_Tiquetes = tkt.id 
+									  AND ti2.cd_aero_siglas IS NOT NULL 
+									  AND LTRIM(RTRIM(ti2.cd_aero_siglas)) <> ''''
+								) ti2
+								ORDER BY ti2.orden
+								FOR XML PATH('''')
+							), 1, 3, '''')
+						ELSE NULL END
+			,CombinacionAerolinea = case when id_ConceptoFacturacion in (1,2) AND tkt.id IS NOT NULL then
+										case when (
+											SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+											FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+											WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+										) > 1 then ''Combinada''
+										when (
+											SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+											FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+											WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+										) = 1 then ''Misma Aerolínea''
+										else '''' end
+									else '''' end
+			,OrdenAerolinea = case when id_ConceptoFacturacion in (1,2) AND tkt.id IS NOT NULL then
+								case when (
+									SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+									FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+									WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+								) = 1 then 0
+								when (
+									SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+									FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+									WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+								) > 1 then 1
+								else 2 end
+							else 2 end
 			,Referido= dbo.fnza_ReferidosItem (f.tipo,id_item,in_TipoItem)
 			,F.id_item as ''iditems''
 			,F.in_TipoItem
@@ -928,7 +1171,7 @@ BEGIN
 			'+CASE WHEN ISNULL(@ds_feeocultos,'')<>'' THEN 'AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('''+@ds_feeocultos+''','','',0,1)) OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'AND (C.cd_codigo NOT IN(''CAN'',''CAI'',''CEM'') OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN ISNULL(@id_TiposDocumentoFiltro,'')<>'' THEN 'AND (tkt.id_TiposDocumento IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit('''+@id_TiposDocumentoFiltro+''','','',0,1)))' ELSE '' END+'
-			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL
+			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL +' '+ @FiltroFareBasisSQL +' '+ @FiltroRevisadosSQL
 	END
 
 	-- Subbloque Cotizaciones (Solo se compila y ejecuta si se solicitaron etapas de cotización)
@@ -951,6 +1194,7 @@ BEGIN
 			,ct.ds_cliente_nombre
 			,ct.cd_vendedor
 			,v.NOMBVENDE as ''ds_vendedor''
+			,ISNULL(V.Identificacion, '''') as ''Identificacion_vendedor''
 			,V.telefono as ''Tel_vendedor''  
 			,V.Direccion as ''Dir_vendedor''  
 			,V.Email as ''Correo_vendedor'' 
@@ -1017,6 +1261,9 @@ BEGIN
 			,GrEmpresarial = CASE WHEN ISNULL(CodigoGrEmpresarial,'''') <> '''' THEN GR.Nombre ELSE CL.RAZONCIAL END
 			,tp.ds_nombre AS ''TipoVenta''
 			,Vuelo = ''''
+			,Aerolinea = ''''
+			,CombinacionAerolinea = ''''
+			,OrdenAerolinea = 2
 			,Referido= dbo.fnza_ReferidosItem (''CT'',CS.id,3)
 			,CS.id AS ''iditems''
 			,3 AS ''in_TipoItem''
@@ -1100,7 +1347,7 @@ BEGIN
 				   '+CASE WHEN ISNULL(@ds_conceptosunificados,'')<>'' THEN 'AND (CF.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('''+@ds_conceptosunificados+''','','',0,1)))' ELSE '' END+'
 				   '+CASE WHEN ISNULL(@ds_feeocultos,'')<>'' THEN 'AND (cf.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('''+@ds_feeocultos+''','','',0,1)) OR CS.cd_tiquete IS NULL)' ELSE '' END+'
 				   '+CASE WHEN ISNULL(@id_TiposDocumentoFiltro,'')<>'' THEN 'AND (tkt.id_TiposDocumento IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit('''+@id_TiposDocumentoFiltro+''','','',0,1)))' ELSE '' END+'
-			' + @FiltroFechasVueloCotSQL
+			' + @FiltroFechasVueloCotSQL + CASE WHEN @MostrarSoloRevisados = 'SI' OR @cd_FareBasis IS NOT NULL THEN ' AND 1 = 0' ELSE '' END
 	END
 
 	-- Subbloque Notas de Crédito Parcial (Solo se compila y ejecuta si se solicitaron anulaciones)
@@ -1123,6 +1370,7 @@ BEGIN
 			,ds_cliente
 			,f.cd_vendedor
 			,v.NOMBVENDE as ''ds_vendedor''
+			,ISNULL(V.Identificacion, '''') as ''Identificacion_vendedor''
 			,V.telefono as ''Tel_vendedor''  
 			,V.Direccion as ''Dir_vendedor''  
 			,V.Email as ''Correo_vendedor'' 
@@ -1205,7 +1453,59 @@ BEGIN
 								else dbo.fnza_TC_Items(3, id_itmfac) end
 			,GrEmpresarial = CASE WHEN ISNULL(CodigoGrEmpresarial,'''') <> '''' THEN GR.Nombre ELSE CL.RAZONCIAL END
 			,tp.ds_nombre AS ''TipoVenta''
-			,Vuelo = case when id_ConceptoFacturacion in (1,2) then dbo.Fnza_NumeroVueloTkt (F.Id_fac,F.Id_fac_remision,F.id_itmfac) ELSE NULL END
+			,Vuelo = case when id_ConceptoFacturacion in (1,2) then 
+						STUFF((
+							SELECT '' - '' + RTRIM(ISNULL(ti2.cd_aero_siglas, '''')) + RTRIM(ti2.ds_NumVuelo)
+							FROM (
+								SELECT MIN(ti2.orden) as orden, ti2.cd_aero_siglas, ti2.ds_NumVuelo
+								FROM dbo.Tiquetes_Itinerarios ti2 WITH(NOLOCK)
+								WHERE ti2.id_Tiquetes = tkt.id AND ti2.ds_NumVuelo IS NOT NULL AND LTRIM(RTRIM(ti2.ds_NumVuelo)) <> ''''
+								GROUP BY ti2.cd_aero_siglas, ti2.ds_NumVuelo
+							) ti2
+							ORDER BY ti2.orden
+							FOR XML PATH('''')
+						), 1, 3, '''')
+					ELSE NULL END
+			,Aerolinea = case when id_ConceptoFacturacion in (1,2) then 
+							STUFF((
+								SELECT '' - '' + RTRIM(ti2.cd_aero_siglas)
+								FROM (
+									SELECT DISTINCT ti2.orden, RTRIM(ti2.cd_aero_siglas) as cd_aero_siglas
+									FROM dbo.Tiquetes_Itinerarios ti2 WITH(NOLOCK)
+									WHERE ti2.id_Tiquetes = tkt.id 
+									  AND ti2.cd_aero_siglas IS NOT NULL 
+									  AND LTRIM(RTRIM(ti2.cd_aero_siglas)) <> ''''
+								) ti2
+								ORDER BY ti2.orden
+								FOR XML PATH('''')
+							), 1, 3, '''')
+						ELSE NULL END
+			,CombinacionAerolinea = case when id_ConceptoFacturacion in (1,2) AND tkt.id IS NOT NULL then
+										case when (
+											SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+											FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+											WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+										) > 1 then ''Combinada''
+										when (
+											SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+											FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+											WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+										) = 1 then ''Misma Aerolínea''
+										else '''' end
+									else '''' end
+			,OrdenAerolinea = case when id_ConceptoFacturacion in (1,2) AND tkt.id IS NOT NULL then
+								case when (
+									SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+									FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+									WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+								) = 1 then 0
+								when (
+									SELECT COUNT(DISTINCT tiComb.cd_aero_siglas)
+									FROM dbo.Tiquetes_Itinerarios tiComb WITH(NOLOCK)
+									WHERE tiComb.id_Tiquetes = tkt.id AND tiComb.cd_aero_siglas IS NOT NULL AND LTRIM(RTRIM(tiComb.cd_aero_siglas)) <> ''''
+								) > 1 then 1
+								else 2 end
+							else 2 end
 			,Referido= dbo.fnza_ReferidosItem (f.cd_tipofac,id_itmfac,in_TipoItem)
 			,F.id_item as ''iditems''
 			,F.in_TipoItem
@@ -1294,7 +1594,7 @@ BEGIN
 			'+CASE WHEN ISNULL(@ds_feeocultos,'')<>'' THEN 'AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('''+@ds_feeocultos+''','','',0,1)) OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'AND (C.cd_codigo NOT IN(''CAN'',''CAI'',''CEM'') OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN ISNULL(@id_TiposDocumentoFiltro,'')<>'' THEN 'AND (tkt.id_TiposDocumento IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit('''+@id_TiposDocumentoFiltro+''','','',0,1)))' ELSE '' END+'
-			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL
+			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL +' '+ @FiltroFareBasisSQL +' '+ @FiltroRevisadosSQL
 	END
 
 	--------------------------------------------------------------------------------------------------
@@ -1313,6 +1613,7 @@ BEGIN
 		,ds_cliente As ''Nombre del Cliente''
 		,cd_vendedor As ''Vendedor''
 		,ds_vendedor AS ''Nombre Vendedor''
+		,Identificacion_vendedor AS ''Identificacion del Vendedor''
 		,Tel_Vendedor AS ''Tel_vendedor'' 
 		,Dir_Vendedor AS ''Dir_vendedor'' 
 		,Correo_Vendedor as ''Correo_vendedor''
@@ -1411,6 +1712,8 @@ BEGIN
 		,VentasTotales
 		,VentasTotalesUSD = VentasTotales / Case When am_tcambio <> 1 Then am_tcambio Else Tasa End
 		,Vuelo
+		,Aerolinea
+		,CombinacionAerolinea
 		,Referido
 		,ItemComtable
 		,CentroCosto
@@ -1451,12 +1754,19 @@ BEGIN
 		' + @QueryNotasCredito + '
 	) AS Facturacion
 	ORDER BY  
-		factura
-		,Documento
-		,Servicio
-		,Clase
-		,Pasajero
+		OrdenAerolinea ASC
+		,Aerolinea ASC
+		,factura ASC
+		,Documento ASC
+		,Servicio ASC
+		,Clase ASC
+		,Pasajero ASC
 	'
 	Exec (@SelectData)
+
+	IF OBJECT_ID('tempdb..#TempFareBasis') IS NOT NULL DROP TABLE #TempFareBasis;
+	IF OBJECT_ID('tempdb..#TempIataOrigen') IS NOT NULL DROP TABLE #TempIataOrigen;
+	IF OBJECT_ID('tempdb..#TempIataDestino') IS NOT NULL DROP TABLE #TempIataDestino;
+	IF OBJECT_ID('tempdb..#TempIataItinerario') IS NOT NULL DROP TABLE #TempIataItinerario;
 	
 END

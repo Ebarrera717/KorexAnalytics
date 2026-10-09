@@ -94,23 +94,85 @@ async function runBenchmark(serverConfig) {
   const d0 = Date.now() - t0;
   console.log(`-> Filas retornadas: ${res1.recordset ? res1.recordset.length : 0} en ${d0} ms`);
   if (res1.recordset && res1.recordset.length > 0) {
-    console.log('Ejemplo de formato de fecha en primera fila:');
-    console.log('  FechaSalida_CheckIN:', res1.recordset[0].FechaSalida_CheckIN);
-    console.log('  FechaLlegada_CheckOut:', res1.recordset[0].FechaLlegada_CheckOut);
+    console.log('Ejemplo de fila retornada:');
+    console.log('  Documento:', res1.recordset[0].Documento);
+    console.log('  Servicio:', res1.recordset[0].Servicio);
+    console.log('  Vuelo:', res1.recordset[0].Vuelo);
+    console.log('  Aerolinea:', res1.recordset[0].Aerolinea);
+    console.log('  CombinacionAerolinea:', res1.recordset[0].CombinacionAerolinea);
+    console.log('  Revisado:', res1.recordset[0].Revisado);
     console.log('  FAREBASIS:', res1.recordset[0].FAREBASIS);
   }
 
-  console.log('\n2. Ejecutando con filtro de fecha de salida (año mes día)...');
-  const t1 = Date.now();
-  const res2 = await pool.request().query(`
+  // Muestra de ordenamiento por aerolínea
+  const conAero = (res1.recordset || []).filter(r => r.Aerolinea && r.Aerolinea.trim() !== '');
+  console.log(`\n-> Registros con Aerolinea poblada: ${conAero.length}`);
+  const mismas = conAero.filter(r => r.CombinacionAerolinea === 'Misma Aerolínea');
+  const combinadas = conAero.filter(r => r.CombinacionAerolinea === 'Combinada');
+  console.log(`  - Misma Aerolínea (salen primero): ${mismas.length}`);
+  console.log(`  - Combinadas (salen después): ${combinadas.length}`);
+  if (mismas.length > 0) {
+    console.log('  Muestra PRIMEROS (Misma Aerolínea):');
+    mismas.slice(0, 3).forEach((v, idx) => {
+      console.log(`    [${idx+1}] Doc: ${v.Documento} | Aerolinea: ${v.Aerolinea} | Vuelo: ${v.Vuelo} | Tipo: ${v.CombinacionAerolinea}`);
+    });
+  }
+  if (combinadas.length > 0) {
+    console.log('  Muestra DESPUÉS (Combinadas):');
+    combinadas.slice(0, 3).forEach((v, idx) => {
+      console.log(`    [${idx+1}] Doc: ${v.Documento} | Aerolinea: ${v.Aerolinea} | Vuelo: ${v.Vuelo} | Tipo: ${v.CombinacionAerolinea}`);
+    });
+  }
+
+  console.log('\n2. Probando filtro de Fare Basis (@cd_FareBasis)...');
+  const tFb = Date.now();
+  const resFb = await pool.request().query(`
     EXEC [dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]
       @fecha_inicio = '2026-10-01',
       @fecha_fin = '2026-10-06',
-      @fecha_salida_inicio = '2026-10-01',
-      @fecha_salida_fin = '2026-10-31';
+      @cd_FareBasis = 'HAAAOZ2S,KESB2BRQ';
   `);
-  const d1 = Date.now() - t1;
-  console.log(`-> Filas con salida en Octubre 2026: ${res2.recordset ? res2.recordset.length : 0} en ${d1} ms`);
+  const dFb = Date.now() - tFb;
+  console.log(`-> Filas con Fare Basis filtrado: ${resFb.recordset ? resFb.recordset.length : 0} en ${dFb} ms`);
+
+  console.log('\n3. Probando filtro de Solo Revisados (@MostrarSoloRevisados = "SI")...');
+  const tRev = Date.now();
+  const resRev = await pool.request().query(`
+    EXEC [dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]
+      @fecha_inicio = '2026-10-01',
+      @fecha_fin = '2026-10-06',
+      @MostrarSoloRevisados = 'SI';
+  `);
+  const dRev = Date.now() - tRev;
+  console.log(`-> Filas con Solo Revisados = SI: ${resRev.recordset ? resRev.recordset.length : 0} en ${dRev} ms`);
+  if (resRev.recordset && resRev.recordset.length > 0) {
+    console.log(`  Muestra Revisado: Doc ${resRev.recordset[0].Documento} -> Revisado: ${resRev.recordset[0].Revisado}`);
+  }
+
+  console.log('\n4. Probando filtro País Origen (@cd_PaisOrigen = "CO")...');
+  const tPo = Date.now();
+  const resPo = await pool.request().query(`
+    EXEC [dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]
+      @fecha_inicio = '2026-10-01',
+      @fecha_fin = '2026-10-06',
+      @cd_PaisOrigen = 'CO';
+  `);
+  const dPo = Date.now() - tPo;
+  console.log(`-> Filas con País Origen CO: ${resPo.recordset ? resPo.recordset.length : 0} en ${dPo} ms`);
+
+  console.log('\n5. Probando filtro País Itinerario (@cd_PaisItinerario = "ES")...');
+  const tPi = Date.now();
+  const resPi = await pool.request().query(`
+    EXEC [dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]
+      @fecha_inicio = '2026-10-01',
+      @fecha_fin = '2026-10-06',
+      @cd_PaisItinerario = 'ES';
+  `);
+  const dPi = Date.now() - tPi;
+  console.log(`-> Filas con País Itinerario ES: ${resPi.recordset ? resPi.recordset.length : 0} en ${dPi} ms`);
+  if (resPi.recordset && resPi.recordset.length > 0) {
+    console.log(`  Muestra ES: Doc ${resPi.recordset[0].Documento} | Ruta: ${resPi.recordset[0].Servicio}`);
+  }
 
   await pool.close();
 }

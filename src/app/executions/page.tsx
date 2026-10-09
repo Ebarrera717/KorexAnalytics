@@ -81,6 +81,7 @@ interface ExecutionPreset {
     filterConfig?: { order?: string[]; hidden?: string[] };
     columnConfigs?: ColumnConfig[];
     selectedTotals?: string[];
+    dashboardsConfig?: any[];
 }
 
 interface LookupItem {
@@ -345,7 +346,8 @@ export default function ExecutionsPage() {
                         hidden: Array.from(hiddenParamNames)
                     },
                     columnConfigs,
-                    selectedTotals: Array.from(selectedTotals)
+                    selectedTotals: Array.from(selectedTotals),
+                    dashboardsConfig: currentPreset.dashboardsConfig
                 })
             });
 
@@ -379,6 +381,7 @@ export default function ExecutionsPage() {
         e.preventDefault();
         if (!selectedProc || !presetNameInput.trim()) return;
 
+        const currentPreset = presets.find(p => p.id === Number(selectedPresetId));
         setSavingPreset(true);
         try {
             const payload: any = {
@@ -391,7 +394,8 @@ export default function ExecutionsPage() {
                     hidden: Array.from(hiddenParamNames)
                 },
                 columnConfigs,
-                selectedTotals: Array.from(selectedTotals)
+                selectedTotals: Array.from(selectedTotals),
+                dashboardsConfig: currentPreset?.dashboardsConfig || null
             };
 
             if (presetEditId) {
@@ -771,6 +775,14 @@ export default function ExecutionsPage() {
         });
     }, [filteredResults, selectedTotals, columnConfigs]);
 
+    // Función auxiliar para limpiar celdas y evitar saltos de línea y desbordamiento de columnas al pegar en Excel
+    const cleanCellForExport = (val: any): string => {
+        if (val === null || val === undefined) return '';
+        return String(val)
+            .replace(/[\r\n\t]+/g, ' ')
+            .trim();
+    };
+
     // Exportar Excel
     const handleExportExcel = () => {
         if (!executionResult || !executionResult.data || executionResult.data.length === 0) return;
@@ -778,7 +790,8 @@ export default function ExecutionsPage() {
         const exportData = filteredResults.map(row => {
             const obj: Record<string, any> = {};
             activeColumns.forEach(c => {
-                obj[c.customLabel] = row[c.originalKey];
+                const val = row[c.originalKey];
+                obj[c.customLabel] = typeof val === 'string' ? cleanCellForExport(val) : val;
             });
             return obj;
         });
@@ -793,8 +806,8 @@ export default function ExecutionsPage() {
     const handleCopyToClipboard = () => {
         if (!filteredResults || filteredResults.length === 0) return;
 
-        const headers = activeColumns.map(c => c.customLabel).join('\t');
-        const rows = filteredResults.map(r => activeColumns.map(c => r[c.originalKey] ?? '').join('\t')).join('\n');
+        const headers = activeColumns.map(c => cleanCellForExport(c.customLabel)).join('\t');
+        const rows = filteredResults.map(r => activeColumns.map(c => cleanCellForExport(r[c.originalKey])).join('\t')).join('\n');
         const text = `${headers}\n${rows}`;
 
         navigator.clipboard.writeText(text).then(() => {
@@ -1520,6 +1533,8 @@ export default function ExecutionsPage() {
                                 columns={executionResult.columns}
                                 procedureId={selectedProc?.id || 1}
                                 procedureName={selectedProc?.name || 'Consulta'}
+                                presetId={selectedPresetId ? Number(selectedPresetId) : null}
+                                presetName={presets.find(p => p.id === Number(selectedPresetId))?.name}
                             />
                         </div>
                     )}

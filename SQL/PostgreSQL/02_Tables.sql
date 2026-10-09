@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS public."KAX_ExecutionPreset" (
     "filterConfig" TEXT NULL,
     "columnConfigs" TEXT NULL,
     "selectedTotals" TEXT NULL,
+    "dashboardsConfig" TEXT NULL,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

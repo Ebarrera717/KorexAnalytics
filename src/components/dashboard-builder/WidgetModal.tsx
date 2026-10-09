@@ -43,9 +43,8 @@ export const WidgetModal: React.FC<WidgetModalProps> = ({
 
     const [title, setTitle] = useState(initialWidget?.title || 'Nuevo Widget');
     const [type, setType] = useState<WidgetType>(initialWidget?.type || 'bar');
-    const [dimensionColumn, setDimensionColumn] = useState<string>(
-        initialWidget?.dimensionColumn || columns[0] || ''
-    );
+    const [mainDimension, setMainDimension] = useState<string>(columns[0] || '');
+    const [secondDimension, setSecondDimension] = useState<string>('');
     const [metricColumn, setMetricColumn] = useState<string>(
         initialWidget?.metricColumn || numericColumns[0] || ''
     );
@@ -68,7 +67,15 @@ export const WidgetModal: React.FC<WidgetModalProps> = ({
         if (initialWidget) {
             setTitle(initialWidget.title);
             setType(initialWidget.type);
-            setDimensionColumn(initialWidget.dimensionColumn || columns[0] || '');
+            const dim = initialWidget.dimensionColumn || columns[0] || '';
+            if (dim.includes(' / ')) {
+                const parts = dim.split(' / ');
+                setMainDimension(parts[0] || columns[0] || '');
+                setSecondDimension(parts[1] || '');
+            } else {
+                setMainDimension(dim);
+                setSecondDimension('');
+            }
             setMetricColumn(initialWidget.metricColumn || numericColumns[0] || '');
             setAggregation(initialWidget.aggregation || 'SUM');
             setWidth(initialWidget.width || (initialWidget.type === 'kpi' ? 'quarter' : 'half'));
@@ -79,7 +86,8 @@ export const WidgetModal: React.FC<WidgetModalProps> = ({
         } else {
             setTitle('Nuevo Widget');
             setType('bar');
-            setDimensionColumn(columns[0] || '');
+            setMainDimension(columns[0] || '');
+            setSecondDimension('');
             setMetricColumn(numericColumns[0] || '');
             setAggregation('SUM');
             setWidth('half');
@@ -94,11 +102,15 @@ export const WidgetModal: React.FC<WidgetModalProps> = ({
 
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
+        const finalDimension = secondDimension && secondDimension.trim() !== ''
+            ? `${mainDimension} / ${secondDimension}`
+            : mainDimension;
+
         const config: WidgetConfig = {
             id: initialWidget?.id || `w_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             title: title.trim() || 'Widget sin título',
             type,
-            dimensionColumn: type === 'kpi' ? undefined : dimensionColumn,
+            dimensionColumn: type === 'kpi' ? undefined : finalDimension,
             metricColumn: metricColumn || undefined,
             aggregation,
             width,
@@ -188,21 +200,41 @@ export const WidgetModal: React.FC<WidgetModalProps> = ({
                     {/* Configuración Eje X (Dimensión) y Eje Y (Métrica) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {type !== 'kpi' && (
-                            <div>
-                                <label className="block text-[11px] font-medium text-slate-400 mb-1.5 uppercase tracking-wider">
-                                    Dimensión / Eje X (Agrupación)
-                                </label>
-                                <select
-                                    value={dimensionColumn}
-                                    onChange={e => setDimensionColumn(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500 text-xs"
-                                >
-                                    {columns.map(col => (
-                                        <option key={col} value={col}>
-                                            {col}
-                                        </option>
-                                    ))}
-                                </select>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[11px] font-medium text-slate-400 mb-1.5 uppercase tracking-wider">
+                                        Dimensión Principal (Agrupación)
+                                    </label>
+                                    <select
+                                        value={mainDimension}
+                                        onChange={e => setMainDimension(e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500 text-xs"
+                                    >
+                                        {columns.map(col => (
+                                            <option key={col} value={col}>
+                                                {col}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-medium text-slate-400 mb-1.5 uppercase tracking-wider flex items-center justify-between">
+                                        <span>Sub-Agrupación (Opcional)</span>
+                                        <span className="text-[9px] text-cyan-400 font-normal">Multi-nivel</span>
+                                    </label>
+                                    <select
+                                        value={secondDimension}
+                                        onChange={e => setSecondDimension(e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500 text-xs"
+                                    >
+                                        <option value="">(Ninguna - Solo Dimensión Principal)</option>
+                                        {columns.filter(col => col !== mainDimension).map(col => (
+                                            <option key={col} value={col}>
+                                                + Desglose por: {col}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
                         )}
 

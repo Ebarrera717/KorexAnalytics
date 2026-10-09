@@ -57,11 +57,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 
     const navItems = [
-        { name: 'Dashboard', href: '/', icon: Activity },
         { name: 'Ejecuciones', href: '/executions', icon: Play },
         { name: 'SQL Server', href: '/sqlserver', icon: Database },
         { name: 'Parámetros', href: '/parameters', icon: Sliders },
-        { name: 'Historial', href: '/history', icon: History },
         { name: 'Seguridad / Licencia', href: '/users', icon: Shield }
     ];
 

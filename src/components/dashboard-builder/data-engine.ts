@@ -5,6 +5,7 @@ export interface ProcessedDataResult {
     values: number[];
     kpiValue?: number;
     rows?: Record<string, any>[];
+    allRows?: Record<string, any>[];
     totalCount: number;
     totalMetricSum?: number;
     totalTiquetesSum?: number;
@@ -86,6 +87,21 @@ export function processWidgetData(rows: Record<string, any>[], widget: WidgetCon
         const totalMetricSum = sliced.reduce((acc, g) => acc + (g.value > 0 ? g.value : 0), 0);
         const totalTiquetesSum = sliced.reduce((acc, g) => acc + g.count, 0);
 
+        // Mapear todas las filas sin truncar (para exportación completa a PDF y Excel)
+        const allRows = groups.map(g => {
+            const pct = totalGlobalMetricSum > 0 ? (g.value / totalGlobalMetricSum) * 100 : 0;
+            const pctTkt = totalGlobalTiquetesSum > 0 ? (g.count / totalGlobalTiquetesSum) * 100 : 0;
+            return {
+                [widget.dimensionColumn!]: g.label,
+                [widget.metricColumn || 'conteo']: g.value,
+                registros: g.count,
+                tiquetes: g.count,
+                sumatoriaTiquetes: g.count,
+                porcentaje: Math.round(pct * 100) / 100,
+                porcentajeTiquetes: Math.round(pctTkt * 100) / 100
+            };
+        });
+
         return {
             labels: sliced.map(g => g.label),
             values: sliced.map(g => g.value),
@@ -102,6 +118,7 @@ export function processWidgetData(rows: Record<string, any>[], widget: WidgetCon
                     porcentajeTiquetes: Math.round(pctTkt * 100) / 100
                 };
             }),
+            allRows,
             totalCount: groups.length,
             totalMetricSum,
             totalTiquetesSum,
@@ -161,7 +178,7 @@ interface GroupItem {
 }
 
 /**
- * Agrupa filas por una dimensión y calcula la agregación solicitada
+ * Agrupa filas por una dimensión (simple o compuesta separada por / o ,) y calcula la agregación solicitada
  */
 function groupByDimension(
     rows: Record<string, any>[],
@@ -169,13 +186,24 @@ function groupByDimension(
     metricCol?: string,
     agg: AggregationFn = 'SUM'
 ): GroupItem[] {
+    const isComposite = dimCol.includes(' / ') || dimCol.includes(',');
+    const dimCols = isComposite ? dimCol.split(/[\/,]/).map(c => c.trim()).filter(Boolean) : [dimCol];
     const map = new Map<string, number[]>();
 
     for (const r of rows) {
-        const rawDim = r[dimCol];
-        const label = rawDim !== null && rawDim !== undefined && String(rawDim).trim() !== ''
-            ? String(rawDim)
-            : '(En Blanco)';
+        let label = '';
+        if (isComposite) {
+            const parts = dimCols.map(c => {
+                const val = r[c];
+                return val !== null && val !== undefined && String(val).trim() !== '' ? String(val).trim() : '(En Blanco)';
+            });
+            label = parts.join(' / ');
+        } else {
+            const rawDim = r[dimCol];
+            label = rawDim !== null && rawDim !== undefined && String(rawDim).trim() !== ''
+                ? String(rawDim).trim()
+                : '(En Blanco)';
+        }
 
         let numVal = 1;
         if (metricCol) {

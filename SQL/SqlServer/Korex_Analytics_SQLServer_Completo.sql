@@ -139,6 +139,7 @@ BEGIN
         [filterConfig] NVARCHAR(MAX) NULL,   -- JSON con orden y visibilidad de filtros
         [columnConfigs] NVARCHAR(MAX) NULL,  -- JSON con renombrado y visibilidad de columnas
         [selectedTotals] NVARCHAR(MAX) NULL, -- JSON con columnas de totales
+        [dashboardsConfig] NVARCHAR(MAX) NULL, -- JSON con tableros analíticos específicos de esta plantilla
         [createdAt] DATETIME2 NOT NULL CONSTRAINT DF_KAX_ExecutionPreset_CreatedAt DEFAULT SYSUTCDATETIME(),
         [updatedAt] DATETIME2 NOT NULL CONSTRAINT DF_KAX_ExecutionPreset_UpdatedAt DEFAULT SYSUTCDATETIME(),
         CONSTRAINT UQ_KAX_ExecutionPreset_User_Proc_Name UNIQUE ([userId], [procedureId], [name])

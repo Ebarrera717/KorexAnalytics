@@ -88,7 +88,11 @@ export async function GET(req: NextRequest) {
             ds_conceptosunificados: 'conceptos',
             cd_ciudadorigen: 'ciudades',
             cd_segundaciudad: 'ciudades',
-            cd_ciudaditinerario: 'ciudades'
+            cd_ciudaditinerario: 'ciudades',
+            cd_paisorigen: 'paises',
+            cd_paisdestino: 'paises',
+            cd_paisitinerario: 'paises',
+            cd_farebasis: 'farebasis'
         };
 
         const selectFields = [
@@ -101,7 +105,9 @@ export async function GET(req: NextRequest) {
             'mostrarcombustible',
             'mostrartaocemcolumnas',
             'mostraranulacion',
-            'porfechadocumento'
+            'porfechadocumento',
+            'mostrarsolorevisados',
+            'revisado'
         ];
 
         const formattedParams = recordset.map((row: any) => {
@@ -121,6 +127,11 @@ export async function GET(req: NextRequest) {
             else if (lowerName === 'fecha_salida_fin') label = 'Fecha Salida (Hasta)';
             else if (lowerName === 'fecha_llegada_inicio') label = 'Fecha Llegada (Desde)';
             else if (lowerName === 'fecha_llegada_fin') label = 'Fecha Llegada (Hasta)';
+            else if (lowerName === 'cd_paisorigen') label = 'País Origen';
+            else if (lowerName === 'cd_paisdestino') label = 'País Destino';
+            else if (lowerName === 'cd_paisitinerario') label = 'País en Itinerario';
+            else if (lowerName === 'cd_farebasis') label = 'Fare Basis';
+            else if (lowerName === 'mostrarsolorevisados' || lowerName === 'revisado') label = 'Solo Revisados';
             else {
                 label = label.charAt(0).toUpperCase() + label.slice(1);
             }
@@ -167,11 +178,11 @@ export async function GET(req: NextRequest) {
             let section = 'Filtros Generales';
             if (type === 'date' || lowerName.includes('fech') || lowerName.startsWith('dt_')) {
                 section = 'Fechas';
-            } else if (lowerName.includes('ciudad') || lowerName.includes('ruta') || lowerName.includes('itinerario') || lowerName.includes('origen') || lowerName.includes('destino')) {
+            } else if (lowerName.includes('ciudad') || lowerName.includes('ruta') || lowerName.includes('itinerario') || lowerName.includes('origen') || lowerName.includes('destino') || lowerName.includes('pais') || lowerName.includes('farebasis')) {
                 section = 'Rutas & Itinerarios';
             } else if (lowerName.includes('remision') || lowerName.includes('concepto') || lowerName.includes('factura') || lowerName.includes('cargo') || lowerName.includes('impuesto')) {
                 section = 'Documentos & Conceptos';
-            } else if (lowerName.includes('mostrar') || lowerName.includes('categoria') || lowerName.includes('variable') || lowerName.includes('etapa') || lowerName.includes('venta')) {
+            } else if (lowerName.includes('mostrar') || lowerName.includes('categoria') || lowerName.includes('variable') || lowerName.includes('etapa') || lowerName.includes('venta') || lowerName.includes('revisado')) {
                 section = 'Opciones de Reporte';
             }
 

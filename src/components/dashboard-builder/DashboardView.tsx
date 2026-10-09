@@ -29,13 +29,17 @@ interface DashboardViewProps {
     columns: string[];
     procedureId: number;
     procedureName: string;
+    presetId?: number | null;
+    presetName?: string;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
     data,
     columns,
     procedureId,
-    procedureName
+    procedureName,
+    presetId,
+    presetName
 }) => {
     // Lista de tableros guardados en DB
     const [savedDashboards, setSavedDashboards] = useState<DashboardConfig[]>([]);
@@ -62,14 +66,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     // Referencia al contenedor para exportación
     const dashboardRef = useRef<HTMLDivElement>(null);
 
-    // Cargar tableros existentes al montar o cambiar el SP
+    // Cargar tableros existentes al montar o cambiar el SP o la Plantilla activa
     useEffect(() => {
         loadDashboards();
-    }, [procedureId]);
+    }, [procedureId, presetId]);
 
     const loadDashboards = async () => {
         try {
-            const res = await fetch(`/api/executions/dashboards?procedureId=${procedureId}`);
+            const url = presetId
+                ? `/api/executions/dashboards?procedureId=${procedureId}&presetId=${presetId}`
+                : `/api/executions/dashboards?procedureId=${procedureId}`;
+            const res = await fetch(url);
             if (res.ok) {
                 const list = await res.json();
                 setSavedDashboards(list);
@@ -207,6 +214,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             ? JSON.parse(dash.widgetsConfig)
             : [];
         setWidgets(wList);
+
+        if (dash.layoutConfig) {
+            try {
+                const lCfg = typeof dash.layoutConfig === 'string' ? JSON.parse(dash.layoutConfig) : dash.layoutConfig;
+                setFilterCategoryCol(lCfg.filterCategoryCol || lCfg.categoryColumn || '');
+                setSelectedCategoryValues(Array.isArray(lCfg.selectedCategoryValues) ? lCfg.selectedCategoryValues : (Array.isArray(lCfg.selectedCategories) ? lCfg.selectedCategories : []));
+                setFilterSearch(typeof lCfg.filterSearch === 'string' ? lCfg.filterSearch : '');
+            } catch {}
+        } else {
+            setFilterCategoryCol('');
+            setSelectedCategoryValues([]);
+            setFilterSearch('');
+        }
     };
 
     // Filtro global aplicado a la data en memoria
@@ -262,8 +282,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 body: JSON.stringify({
                     id: currentDashboard.id,
                     procedureId,
+                    presetId: presetId || null,
                     name: dashboardName,
                     description: currentDashboard.description || '',
+                    layoutConfig: {
+                        filterCategoryCol,
+                        selectedCategoryValues,
+                        filterSearch
+                    },
                     widgetsConfig: widgets,
                     isDefault: currentDashboard.isDefault
                 })
@@ -285,7 +311,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }
     };
 
-    // Guardar como nuevo tablero
+    // Guardar como nuevo tablero (se aplica a todas las plantillas del procedimiento)
     const handleSaveAs = async () => {
         if (!saveAsName.trim()) return;
 
@@ -296,8 +322,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     procedureId,
+                    presetId: presetId || null,
                     name: saveAsName.trim(),
                     description: saveAsDesc.trim(),
+                    layoutConfig: {
+                        filterCategoryCol,
+                        selectedCategoryValues,
+                        filterSearch
+                    },
                     widgetsConfig: widgets,
                     isDefault: false
                 })
@@ -319,13 +351,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }
     };
 
-    // Eliminar tablero
+    // Eliminar tablero (si hay plantilla activa, se elimina ÚNICAMENTE de esa plantilla y queda en las demás)
     const handleDeleteDashboard = async () => {
         if (!currentDashboard?.id) return;
-        if (!confirm(`¿Desea eliminar el tablero "${currentDashboard.name}"?`)) return;
+        const confirmMsg = presetName
+            ? `¿Desea eliminar el tablero "${currentDashboard.name}" únicamente de la plantilla "${presetName}"?\n(El tablero permanecerá disponible en las demás plantillas)`
+            : `¿Desea eliminar el tablero "${currentDashboard.name}"?`;
+        
+        if (!confirm(confirmMsg)) return;
 
         try {
-            const res = await fetch(`/api/executions/dashboards?id=${currentDashboard.id}`, {
+            const url = presetId
+                ? `/api/executions/dashboards?id=${currentDashboard.id}&procedureId=${procedureId}&presetId=${presetId}`
+                : `/api/executions/dashboards?id=${currentDashboard.id}&procedureId=${procedureId}`;
+            
+            const res = await fetch(url, {
                 method: 'DELETE'
             });
             if (res.ok) {
@@ -472,15 +512,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             {currentDashboard && (
                                 <button
                                     onClick={handleDeleteDashboard}
-                                    title="Eliminar este tablero guardado"
+                                    title={presetName ? `Eliminar tablero de la plantilla "${presetName}" (se mantendrá en las demás)` : "Eliminar este tablero guardado"}
                                     className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                             )}
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                            {filteredData.length} registros analizados • {widgets.length} widgets configurados
+                        <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
+                            <span>{filteredData.length} registros analizados • {widgets.length} widgets configurados</span>
+                            {presetName && (
+                                <span className="bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold">
+                                    Plantilla: {presetName}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>

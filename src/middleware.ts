@@ -5,7 +5,9 @@ export async function middleware(req: NextRequest) {
 
     // 1. Rutas públicas del sistema e infraestructura que NUNCA se bloquean
     if (
+        pathname.startsWith('/login') ||
         pathname.startsWith('/licencia-expirada') ||
+        pathname.startsWith('/api/auth') ||
         pathname.startsWith('/api/license') ||
         pathname.startsWith('/_next') ||
         pathname.includes('.')
@@ -41,15 +43,7 @@ export async function middleware(req: NextRequest) {
         return redirectLic;
     }
 
-    // 3. Rutas públicas de autenticación (solo accesibles si la licencia es válida)
-    if (
-        pathname.startsWith('/login') ||
-        pathname.startsWith('/api/auth/login')
-    ) {
-        return NextResponse.next();
-    }
-
-    // 4. Verificación obligatoria de Sesión de Usuario (Autenticación requerida)
+    // 3. Verificación obligatoria de Sesión de Usuario (Autenticación requerida)
     const sessionCookie = req.cookies.get('kax_session')?.value;
 
     if (!sessionCookie) {

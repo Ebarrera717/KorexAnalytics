@@ -28,8 +28,11 @@ import {
     Maximize2,
     Activity,
     DollarSign,
-    Layers
+    Layers,
+    FileSpreadsheet,
+    FileText
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 // Registrar módulos necesarios de Chart.js
 ChartJS.register(
@@ -227,6 +230,160 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
         ? 'from-cyan-400 to-blue-400'
         : 'from-fuchsia-400 to-pink-500';
 
+    // Exportar SOLO esta tabla o widget a Excel (con el 100% de la información real)
+    const handleExportWidgetExcel = () => {
+        const rowsToExport = processed.allRows || processed.rows;
+        if (!rowsToExport || rowsToExport.length === 0) {
+            alert('No hay datos disponibles para exportar.');
+            return;
+        }
+
+        const wb = XLSX.utils.book_new();
+        const sheetData: any[] = rowsToExport.map(r => ({
+            [widget.dimensionColumn || 'Dimensión']: r[widget.dimensionColumn!],
+            [`${widget.aggregation} (${widget.metricColumn || 'Valor'})`]: r[widget.metricColumn || 'conteo'],
+            'Participación (%)': `${r.porcentaje ?? 0}%`,
+            'Sumatoria Tiquetes': r.sumatoriaTiquetes ?? r.registros ?? 0,
+            'Part. Tiquetes (%)': `${r.porcentajeTiquetes ?? 0}%`
+        }));
+
+        // Agregar fila de Total General exacto
+        sheetData.push({
+            [widget.dimensionColumn || 'Dimensión']: `TOTAL (${processed.totalCount} grupos)`,
+            [`${widget.aggregation} (${widget.metricColumn || 'Valor'})`]: processed.totalGlobalMetricSum ?? processed.totalMetricSum ?? 0,
+            'Participación (%)': '100.00%',
+            'Sumatoria Tiquetes': processed.totalGlobalTiquetesSum ?? processed.totalTiquetesSum ?? 0,
+            'Part. Tiquetes (%)': '100.00%'
+        });
+
+        const ws = XLSX.utils.json_to_sheet(sheetData);
+        const safeTitle = (widget.title.replace(/[\/\\?*:[\]]/g, '').trim() || 'Reporte').substring(0, 30);
+        XLSX.utils.book_append_sheet(wb, ws, safeTitle);
+        const dateStr = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `${safeTitle}_${dateStr}.xlsx`);
+    };
+
+    // Exportar SOLO esta tabla a PDF (abriendo ventana con toda la data completa sin límite de scroll)
+    const handleExportWidgetPDF = () => {
+        const rowsToExport = processed.allRows || processed.rows;
+        if (!rowsToExport || rowsToExport.length === 0) {
+            alert('No hay datos disponibles para exportar.');
+            return;
+        }
+
+        const printWindow = window.open('', '_blank', 'width=1100,height=850');
+        if (!printWindow) {
+            alert('Por favor permita ventanas emergentes para generar el PDF.');
+            return;
+        }
+
+        const title = widget.title;
+        const totalVal = formatMetricNumber(processed.totalGlobalMetricSum ?? processed.totalMetricSum ?? 0);
+        const totalTkts = formatMetricNumber(processed.totalGlobalTiquetesSum ?? processed.totalTiquetesSum ?? 0);
+
+        let rowsHtml = '';
+        rowsToExport.forEach((r, idx) => {
+            const dim = r[widget.dimensionColumn!] ?? '';
+            const metric = formatMetricNumber(r[widget.metricColumn || 'conteo']);
+            const pct = r.porcentaje !== undefined ? `${r.porcentaje.toFixed(2)}%` : '0%';
+            const tkts = formatMetricNumber(r.sumatoriaTiquetes ?? r.registros ?? 0);
+            const pctTkts = r.porcentajeTiquetes !== undefined ? `${r.porcentajeTiquetes.toFixed(2)}%` : '0%';
+
+            rowsHtml += `
+                <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+                    <td style="padding: 7px 10px; color: #64748b; font-family: monospace; text-align: center;">${idx + 1}</td>
+                    <td style="padding: 7px 10px; font-weight: 600; color: #1e293b;">${dim}</td>
+                    <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #0284c7;">${metric}</td>
+                    <td style="padding: 7px 10px; text-align: right; font-weight: 600; color: #059669;">${pct}</td>
+                    <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #d97706; background-color: #fef3c7;">${tkts}</td>
+                    <td style="padding: 7px 10px; text-align: right; font-weight: 600; color: #b45309;">${pctTkts}</td>
+                </tr>
+            `;
+        });
+
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8" />
+                <title>${title} - Reporte Completo</title>
+                <style>
+                    @page { size: landscape; margin: 15mm; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; color: #1e293b; }
+                    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 16px; }
+                    .title { font-size: 18px; font-weight: 800; color: #0f172a; }
+                    .subtitle { font-size: 12px; color: #64748b; margin-top: 3px; }
+                    .date { font-size: 11px; color: #64748b; text-align: right; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                    th { background-color: #0f172a; color: #ffffff; padding: 9px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+                    tfoot tr { background-color: #f1f5f9; border-top: 2px solid #0f172a; font-weight: 800; font-size: 12px; }
+                    tfoot td { padding: 9px 10px; }
+                    @media print {
+                        .no-print { display: none !important; }
+                        body { padding: 0; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="no-print" style="margin-bottom: 16px; display: flex; gap: 10px;">
+                    <button onclick="window.print()" style="padding: 8px 16px; background: #0284c7; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                        Imprimir / Guardar como PDF
+                    </button>
+                    <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                        Cerrar Ventana
+                    </button>
+                </div>
+
+                <div class="header">
+                    <div>
+                        <div class="title">${title}</div>
+                        <div class="subtitle">Dimensión: ${widget.dimensionColumn || 'Dimensión'} • Métrica: ${widget.aggregation} (${widget.metricColumn || 'Valor'}) • Universo Completo (${rowsToExport.length} grupos)</div>
+                    </div>
+                    <div class="date">
+                        <div><strong>KOREX ANALYTICS</strong></div>
+                        <div>Fecha: ${new Date().toLocaleDateString('es-CO')} ${new Date().toLocaleTimeString('es-CO')}</div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 40px; text-align: center;">#</th>
+                            <th style="text-align: left;">${widget.dimensionColumn || 'Dimensión'}</th>
+                            <th style="text-align: right;">${widget.aggregation} (${widget.metricColumn || 'Valor'})</th>
+                            <th style="text-align: right;">Participación (%)</th>
+                            <th style="text-align: right;">Sumatoria Tiquetes</th>
+                            <th style="text-align: right;">Part. Tiquetes (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="2" style="color: #0284c7;">TOTAL (${processed.totalCount} grupos evaluados)</td>
+                            <td style="text-align: right; color: #0284c7; font-family: monospace;">${totalVal}</td>
+                            <td style="text-align: right; color: #059669;">100.00%</td>
+                            <td style="text-align: right; color: #d97706; background-color: #fef3c7; font-family: monospace;">${totalTkts}</td>
+                            <td style="text-align: right; color: #b45309;">100.00%</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <script>
+                    window.onload = function() {
+                        setTimeout(function() { window.print(); }, 350);
+                    };
+                </script>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+    };
+
     return (
         <div className={`${widthClasses} bg-slate-900/90 border border-slate-800 hover:border-slate-700/80 rounded-xl p-4 flex flex-col justify-between shadow-lg shadow-black/30 transition-all duration-200 group`}>
             {/* Header del Widget */}
@@ -249,7 +406,29 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                     </div>
                 </div>
 
-                <div className="flex items-center space-x-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center space-x-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                    {/* Botones de Exportación Directa del Widget (Excel y PDF con 100% de la información real) */}
+                    {widget.type === 'pivot_table' && (
+                        <>
+                            <button
+                                onClick={handleExportWidgetExcel}
+                                title="Exportar esta tabla completa a Excel (.xlsx)"
+                                className="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-bold flex items-center space-x-1 transition"
+                            >
+                                <FileSpreadsheet className="w-3 h-3" />
+                                <span>Excel</span>
+                            </button>
+                            <button
+                                onClick={handleExportWidgetPDF}
+                                title="Exportar esta tabla completa a PDF (todos los registros, sin límite de scroll)"
+                                className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 border border-rose-500/30 rounded text-[10px] font-bold flex items-center space-x-1 transition"
+                            >
+                                <FileText className="w-3 h-3" />
+                                <span>PDF</span>
+                            </button>
+                        </>
+                    )}
+
                     <button
                         onClick={() => onEdit(widget)}
                         title="Editar Widget"

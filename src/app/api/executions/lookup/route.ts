@@ -120,6 +120,16 @@ export async function GET(req: NextRequest) {
                 query = `SELECT TOP 200 cd_Iata AS code, ds_nombre AS name FROM dbo.Ciudades ${searchClause} ORDER BY cd_Iata`;
                 break;
 
+            case 'paises':
+                searchClause = search ? 'WHERE cd_codigo LIKE @search OR ds_nombre LIKE @search' : 'WHERE cd_codigo IS NOT NULL AND LTRIM(RTRIM(cd_codigo)) <> \'\'';
+                query = `SELECT TOP 200 cd_codigo AS code, ds_nombre AS name FROM dbo.Paises ${searchClause} ORDER BY ds_nombre`;
+                break;
+
+            case 'farebasis':
+                searchClause = search ? 'WHERE cd_farebasis LIKE @search' : 'WHERE cd_farebasis IS NOT NULL AND LTRIM(RTRIM(cd_farebasis)) <> \'\'';
+                query = `SELECT DISTINCT TOP 200 cd_farebasis AS code, cd_farebasis AS name FROM dbo.Tiquetes_Itinerarios ${searchClause} ORDER BY cd_farebasis`;
+                break;
+
             default:
                 return NextResponse.json({ message: `Tipo de lookup desconocido: ${type}` }, { status: 400 });
         }
