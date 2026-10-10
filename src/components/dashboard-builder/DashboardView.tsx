@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { processWidgetData } from './data-engine';
+import { parseJsonResponse } from '@/lib/safe-json';
 
 interface DashboardViewProps {
     data: Record<string, any>[];
@@ -78,15 +79,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 : `/api/executions/dashboards?procedureId=${procedureId}`;
             const res = await fetch(url);
             if (res.ok) {
-                const list = await res.json();
-                setSavedDashboards(list);
+                const list = await parseJsonResponse(res, []);
+                if (Array.isArray(list)) {
+                    setSavedDashboards(list);
 
-                if (list.length > 0) {
-                    // Cargar el tablero por defecto o el primero
-                    const def = list.find((d: any) => d.isDefault) || list[0];
-                    applyDashboard(def);
+                    if (list.length > 0) {
+                        // Cargar el tablero por defecto o el primero
+                        const def = list.find((d: any) => d.isDefault) || list[0];
+                        applyDashboard(def);
+                    } else {
+                        // Inicializar con widgets inteligentes por defecto según las columnas
+                        createDefaultWidgets();
+                    }
                 } else {
-                    // Inicializar con widgets inteligentes por defecto según las columnas
                     createDefaultWidgets();
                 }
             }
@@ -115,7 +120,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         const initWidgets: WidgetConfig[] = [
             {
                 id: 'kpi_total_count',
-                title: 'Sumatoria de Tiquetes',
+                title: 'Sumatoria Total',
                 type: 'kpi',
                 aggregation: 'COUNT',
                 width: 'quarter',
@@ -296,11 +301,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             });
 
             if (res.ok) {
-                const updated = await res.json();
-                setCurrentDashboard(updated);
-                setSaveStatus('¡Guardado!');
-                loadDashboards();
-                setTimeout(() => setSaveStatus(null), 3000);
+                const updated = await parseJsonResponse<any>(res);
+                if (updated) {
+                    setCurrentDashboard(updated);
+                    setSaveStatus('¡Guardado!');
+                    loadDashboards();
+                    setTimeout(() => setSaveStatus(null), 3000);
+                }
             } else {
                 setSaveStatus('Error al guardar');
             }
@@ -336,13 +343,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             });
 
             if (res.ok) {
-                const created = await res.json();
-                setCurrentDashboard(created);
-                setDashboardName(created.name);
-                setIsSaveAsOpen(false);
-                setSaveStatus('¡Tablero creado!');
-                loadDashboards();
-                setTimeout(() => setSaveStatus(null), 3000);
+                const created = await parseJsonResponse<any>(res);
+                if (created) {
+                    setCurrentDashboard(created);
+                    setDashboardName(created.name);
+                    setIsSaveAsOpen(false);
+                    setSaveStatus('¡Tablero creado!');
+                    loadDashboards();
+                    setTimeout(() => setSaveStatus(null), 3000);
+                }
             }
         } catch (e) {
             console.error('Error al guardar nuevo tablero:', e);
@@ -430,21 +439,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             let sheetData: any[] = [];
 
             if (w.type === 'pivot_table' && proc.rows && proc.rows.length > 0) {
-                sheetData = proc.rows.map(r => ({
-                    [w.dimensionColumn || 'Dimensión']: r[w.dimensionColumn!],
-                    [`${w.aggregation} (${w.metricColumn || 'Valor'})`]: r[w.metricColumn || 'conteo'],
-                    'Participación (%)': `${r.porcentaje ?? 0}%`,
-                    'Sumatoria Tiquetes': r.sumatoriaTiquetes ?? r.registros ?? 0,
-                    'Part. Tiquetes (%)': `${r.porcentajeTiquetes ?? 0}%`
-                }));
+                const rowsToExport = proc.allRows || proc.rows;
+                rowsToExport.forEach(r => {
+                    const isParent = !!r.isParentGroup;
+                    const hasChildren = isParent && Array.isArray(r.children) && r.children.length > 0;
+
+                    if (isParent) {
+                        sheetData.push({
+                            [w.dimensionColumn || 'Dimensión']: `[USUARIO] ${r[w.dimensionColumn!]}`,
+                            [`${w.aggregation} (${w.metricColumn || 'Valor'})`]: r[w.metricColumn || 'conteo'],
+                            'Participación (%)': `${r.porcentaje ?? 0}%`,
+                            'Sumatoria': r.sumatoria ?? r.sumatoriaTiquetes ?? r.registros ?? 0,
+                            'Participación Sumatoria (%)': `${r.porcentajeSumatoria ?? r.porcentajeTiquetes ?? 0}%`
+                        });
+
+                        if (hasChildren) {
+                            r.children.forEach((ch: any) => {
+                                sheetData.push({
+                                    [w.dimensionColumn || 'Dimensión']: `    └── ${ch[w.dimensionColumn!]}`,
+                                    [`${w.aggregation} (${w.metricColumn || 'Valor'})`]: ch[w.metricColumn || 'conteo'],
+                                    'Participación (%)': `${ch.porcentaje ?? 0}%`,
+                                    'Sumatoria': ch.sumatoria ?? ch.sumatoriaTiquetes ?? ch.registros ?? 0,
+                                    'Participación Sumatoria (%)': `${ch.porcentajeSumatoria ?? ch.porcentajeTiquetes ?? 0}%`
+                                });
+                            });
+                        }
+                    } else {
+                        sheetData.push({
+                            [w.dimensionColumn || 'Dimensión']: r[w.dimensionColumn!],
+                            [`${w.aggregation} (${w.metricColumn || 'Valor'})`]: r[w.metricColumn || 'conteo'],
+                            'Participación (%)': `${r.porcentaje ?? 0}%`,
+                            'Sumatoria': r.sumatoria ?? r.sumatoriaTiquetes ?? r.registros ?? 0,
+                            'Participación Sumatoria (%)': `${r.porcentajeSumatoria ?? r.porcentajeTiquetes ?? 0}%`
+                        });
+                    }
+                });
 
                 // Fila de Total
                 sheetData.push({
                     [w.dimensionColumn || 'Dimensión']: `TOTAL (${proc.totalCount} grupos)`,
                     [`${w.aggregation} (${w.metricColumn || 'Valor'})`]: proc.totalGlobalMetricSum ?? proc.totalMetricSum ?? 0,
                     'Participación (%)': '100.00%',
-                    'Sumatoria Tiquetes': proc.totalGlobalTiquetesSum ?? proc.totalTiquetesSum ?? 0,
-                    'Part. Tiquetes (%)': '100.00%'
+                    'Sumatoria': proc.totalGlobalSumatoria ?? proc.totalGlobalTiquetesSum ?? proc.totalSumatoria ?? proc.totalTiquetesSum ?? 0,
+                    'Participación Sumatoria (%)': '100.00%'
                 });
             } else if (proc.labels && proc.labels.length > 0) {
                 sheetData = proc.labels.map((lbl, i) => ({

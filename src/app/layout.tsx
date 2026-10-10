@@ -3,12 +3,14 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { parseJsonResponse } from '@/lib/safe-json';
 import './globals.css';
 import {
     Activity,
     Play,
     Database,
     Sliders,
+    Plane,
     History,
     Shield,
     LogOut,
@@ -30,8 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         if (!isBlankPage) {
             // 1. Validar estado en vivo de la licencia
             fetch('/api/license')
-                .then(r => r.json())
+                .then(r => parseJsonResponse<any>(r, null))
                 .then(d => {
+                    if (!d) return;
                     if (!d.isLicensed || d.status === 'UNLICENSED' || d.isExpired) {
                         window.location.replace('/licencia-expirada');
                         return;
@@ -41,9 +44,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
             // 2. Validar sesión de usuario
             fetch('/api/auth/me')
-                .then(r => r.json())
+                .then(r => parseJsonResponse<any>(r, null))
                 .then(d => {
-                    if (!d.authenticated) {
+                    if (!d || !d.authenticated) {
                         window.location.replace('/login');
                         return;
                     }
@@ -59,6 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     const navItems = [
         { name: 'Ejecuciones', href: '/executions', icon: Play },
         { name: 'SQL Server', href: '/sqlserver', icon: Database },
+        { name: 'Fare Basis', href: '/parameters/farebasis', icon: Plane },
         { name: 'Parámetros', href: '/parameters', icon: Sliders },
         { name: 'Seguridad / Licencia', href: '/users', icon: Shield }
     ];

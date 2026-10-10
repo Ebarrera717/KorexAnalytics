@@ -40,6 +40,7 @@ import {
 import * as XLSX from 'xlsx';
 import { formatNumber } from '@/lib/utils';
 import { DashboardView } from '@/components/dashboard-builder/DashboardView';
+import { parseJsonResponse } from '@/lib/safe-json';
 
 interface ProcedureParam {
     name: string;
@@ -78,7 +79,7 @@ interface ExecutionPreset {
     name: string;
     description?: string;
     filterValues?: Record<string, string>;
-    filterConfig?: { order?: string[]; hidden?: string[] };
+    filterConfig?: { order?: string[]; hidden?: string[]; labels?: Record<string, string> };
     columnConfigs?: ColumnConfig[];
     selectedTotals?: string[];
     dashboardsConfig?: any[];
@@ -116,10 +117,13 @@ export default function ExecutionsPage() {
     const [presetDescInput, setPresetDescInput] = useState('');
     const [savingPreset, setSavingPreset] = useState(false);
 
-    // Ajustes de Filtros (Orden y Visibilidad)
+    // Ajustes de Filtros (Orden, Visibilidad y Nombres Personalizados)
     const [orderedParams, setOrderedParams] = useState<ProcedureParam[]>([]);
     const [hiddenParamNames, setHiddenParamNames] = useState<Set<string>>(new Set());
+    const [customParamLabels, setCustomParamLabels] = useState<Record<string, string>>({});
     const [showFilterConfig, setShowFilterConfig] = useState(false);
+    const [editingFilterParam, setEditingFilterParam] = useState<string | null>(null);
+    const [tempFilterLabel, setTempFilterLabel] = useState<string>('');
 
     // Modal de Creación / Edición de SP
     const [showProcModal, setShowProcModal] = useState(false);
@@ -181,7 +185,7 @@ export default function ExecutionsPage() {
     const loadProfiles = async () => {
         try {
             const res = await fetch('/api/sqlserver/profiles');
-            const data: SQLProfile[] = await res.json();
+            const data: SQLProfile[] | null = await parseJsonResponse(res, []);
             if (Array.isArray(data) && data.length > 0) {
                 setProfiles(data);
                 const active = data.find(p => p.isActive) || data[0];
@@ -197,7 +201,7 @@ export default function ExecutionsPage() {
         setLoadingProcs(true);
         try {
             const res = await fetch('/api/executions/procedures');
-            const data: Procedure[] = await res.json();
+            const data: Procedure[] | null = await parseJsonResponse(res, []);
             if (Array.isArray(data)) {
                 setProcedures(data);
                 if (data.length > 0) {
@@ -215,8 +219,10 @@ export default function ExecutionsPage() {
         try {
             const res = await fetch(`/api/executions/presets?procedureId=${procedureId}`);
             if (res.ok) {
-                const data: ExecutionPreset[] = await res.json();
-                setPresets(data);
+                const data: ExecutionPreset[] | null = await parseJsonResponse(res, []);
+                if (Array.isArray(data)) {
+                    setPresets(data);
+                }
             }
         } catch (e) {
             console.error('Error al cargar plantillas:', e);
@@ -240,9 +246,10 @@ export default function ExecutionsPage() {
 
         const params = proc.parameters || [];
 
-        // Recuperar orden/visibilidad de localStorage si existe
+        // Recuperar orden/visibilidad/etiquetas de localStorage si existe
         let initialOrdered = [...params];
         let initialHidden = new Set<string>();
+        let initialLabels: Record<string, string> = {};
 
         if (typeof window !== 'undefined') {
             const savedKey = `kax_filter_config_${proc.id}`;
@@ -250,17 +257,30 @@ export default function ExecutionsPage() {
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
+                    if (parsed.labels && typeof parsed.labels === 'object') {
+                        initialLabels = parsed.labels;
+                    }
                     if (Array.isArray(parsed.order)) {
-                        const map = new Map(params.map(p => [p.name, p]));
+                        const map = new Map(params.map(p => [p.name, { ...p }]));
                         const reordered: ProcedureParam[] = [];
                         parsed.order.forEach((name: string) => {
                             if (map.has(name)) {
-                                reordered.push(map.get(name)!);
+                                const pObj = map.get(name)!;
+                                if (initialLabels[name]) pObj.label = initialLabels[name];
+                                reordered.push(pObj);
                                 map.delete(name);
                             }
                         });
-                        map.forEach(p => reordered.push(p));
+                        map.forEach(p => {
+                            if (initialLabels[p.name]) p.label = initialLabels[p.name];
+                            reordered.push(p);
+                        });
                         initialOrdered = reordered;
+                    } else if (Object.keys(initialLabels).length > 0) {
+                        initialOrdered = initialOrdered.map(p => ({
+                            ...p,
+                            label: initialLabels[p.name] || p.label
+                        }));
                     }
                     if (Array.isArray(parsed.hidden)) {
                         initialHidden = new Set(parsed.hidden);
@@ -269,6 +289,7 @@ export default function ExecutionsPage() {
             }
         }
 
+        setCustomParamLabels(initialLabels);
         setOrderedParams(initialOrdered);
         setHiddenParamNames(initialHidden);
 
@@ -301,21 +322,49 @@ export default function ExecutionsPage() {
             if (preset.filterConfig.hidden) {
                 setHiddenParamNames(new Set(preset.filterConfig.hidden));
             }
-            if (preset.filterConfig.order && selectedProc) {
-                const map = new Map(selectedProc.parameters.map(p => [p.name, p]));
+            const presetLabels = preset.filterConfig.labels || {};
+            setCustomParamLabels(presetLabels);
+
+            if (selectedProc) {
+                const map = new Map(selectedProc.parameters.map(p => [p.name, { ...p }]));
                 const reordered: ProcedureParam[] = [];
-                preset.filterConfig.order.forEach((name: string) => {
-                    if (map.has(name)) {
-                        reordered.push(map.get(name)!);
-                        map.delete(name);
-                    }
+                if (preset.filterConfig.order) {
+                    preset.filterConfig.order.forEach((name: string) => {
+                        if (map.has(name)) {
+                            const pObj = map.get(name)!;
+                            if (presetLabels[name]) pObj.label = presetLabels[name];
+                            reordered.push(pObj);
+                            map.delete(name);
+                        }
+                    });
+                }
+                map.forEach(p => {
+                    if (presetLabels[p.name]) p.label = presetLabels[p.name];
+                    reordered.push(p);
                 });
-                map.forEach(p => reordered.push(p));
                 setOrderedParams(reordered);
             }
         }
         if (preset.columnConfigs) {
-            setColumnConfigs(preset.columnConfigs);
+            let nextCols = [...preset.columnConfigs];
+            if (executionResult?.columns && executionResult.columns.length > 0) {
+                const existingKeys = new Set(nextCols.map(c => c.originalKey));
+                const missing = executionResult.columns.filter(col => !existingKeys.has(col));
+                if (missing.length > 0) {
+                    missing.forEach(col => {
+                        if (/vendedor/i.test(col)) {
+                            const idxNombre = nextCols.findIndex(c => /nombre vendedor/i.test(c.originalKey));
+                            const idxVendedor = idxNombre >= 0 ? idxNombre : nextCols.findIndex(c => /vendedor/i.test(c.originalKey));
+                            if (idxVendedor >= 0) {
+                                nextCols.splice(idxVendedor + 1, 0, { originalKey: col, customLabel: col, visible: true });
+                                return;
+                            }
+                        }
+                        nextCols.push({ originalKey: col, customLabel: col, visible: true });
+                    });
+                }
+            }
+            setColumnConfigs(nextCols);
         }
         if (preset.selectedTotals) {
             setSelectedTotals(new Set(preset.selectedTotals));
@@ -343,7 +392,8 @@ export default function ExecutionsPage() {
                     filterValues,
                     filterConfig: {
                         order: orderedParams.map(p => p.name),
-                        hidden: Array.from(hiddenParamNames)
+                        hidden: Array.from(hiddenParamNames),
+                        labels: customParamLabels
                     },
                     columnConfigs,
                     selectedTotals: Array.from(selectedTotals),
@@ -356,8 +406,8 @@ export default function ExecutionsPage() {
                 setTimeout(() => setToastMsg(null), 3000);
                 await loadPresetsForProcedure(selectedProc.id);
             } else {
-                const err = await res.json();
-                alert(err.message || 'Error al actualizar plantilla.');
+                const err = await parseJsonResponse(res, { message: 'Error al actualizar plantilla.' });
+                alert(err?.message || 'Error al actualizar plantilla.');
             }
         } catch (err: any) {
             alert(err.message);
@@ -391,7 +441,8 @@ export default function ExecutionsPage() {
                 filterValues,
                 filterConfig: {
                     order: orderedParams.map(p => p.name),
-                    hidden: Array.from(hiddenParamNames)
+                    hidden: Array.from(hiddenParamNames),
+                    labels: customParamLabels
                 },
                 columnConfigs,
                 selectedTotals: Array.from(selectedTotals),
@@ -409,7 +460,7 @@ export default function ExecutionsPage() {
             });
 
             if (res.ok) {
-                const saved = await res.json();
+                const saved: any = await parseJsonResponse(res);
                 setShowSavePresetModal(false);
                 setToastMsg(`Plantilla "${presetNameInput}" guardada exitosamente.`);
                 setTimeout(() => setToastMsg(null), 3000);
@@ -418,8 +469,8 @@ export default function ExecutionsPage() {
                     setSelectedPresetId(String(saved.id));
                 }
             } else {
-                const err = await res.json();
-                alert(err.message || 'Error al guardar plantilla.');
+                const err = await parseJsonResponse(res, { message: 'Error al guardar plantilla.' });
+                alert(err?.message || 'Error al guardar plantilla.');
             }
         } catch (err: any) {
             alert(err.message);
@@ -442,12 +493,36 @@ export default function ExecutionsPage() {
         }
     };
 
-    // Reordenar y Ocultar Filtros
+    // Guardar configuración local en localStorage
+    const saveFilterSettingsToStorage = (
+        procId: number,
+        order: string[],
+        hidden: string[],
+        labels: Record<string, string>
+    ) => {
+        if (typeof window === 'undefined') return;
+        try {
+            const savedKey = `kax_filter_config_${procId}`;
+            localStorage.setItem(savedKey, JSON.stringify({ order, hidden, labels }));
+        } catch (e) {
+            console.error('Error al guardar configuración de filtros:', e);
+        }
+    };
+
+    // Reordenar, Ocultar y Renombrar Filtros
     const toggleFilterVisibility = (paramName: string) => {
         setHiddenParamNames(prev => {
             const next = new Set(prev);
             if (next.has(paramName)) next.delete(paramName);
             else next.add(paramName);
+            if (selectedProc) {
+                saveFilterSettingsToStorage(
+                    selectedProc.id,
+                    orderedParams.map(p => p.name),
+                    Array.from(next),
+                    customParamLabels
+                );
+            }
             return next;
         });
     };
@@ -459,6 +534,14 @@ export default function ExecutionsPage() {
         next[idx - 1] = next[idx];
         next[idx] = temp;
         setOrderedParams(next);
+        if (selectedProc) {
+            saveFilterSettingsToStorage(
+                selectedProc.id,
+                next.map(p => p.name),
+                Array.from(hiddenParamNames),
+                customParamLabels
+            );
+        }
     };
 
     const moveFilterDown = (idx: number) => {
@@ -468,6 +551,61 @@ export default function ExecutionsPage() {
         next[idx + 1] = next[idx];
         next[idx] = temp;
         setOrderedParams(next);
+        if (selectedProc) {
+            saveFilterSettingsToStorage(
+                selectedProc.id,
+                next.map(p => p.name),
+                Array.from(hiddenParamNames),
+                customParamLabels
+            );
+        }
+    };
+
+    const handleSaveFilterLabel = (paramName: string, newLabel: string) => {
+        if (!selectedProc) return;
+        const defaultLabel = selectedProc.parameters.find(orig => orig.name === paramName)?.label || paramName;
+        const trimmed = newLabel.trim();
+        const finalLabel = trimmed || defaultLabel;
+
+        const nextLabels = { ...customParamLabels };
+        if (!trimmed || trimmed === defaultLabel) {
+            delete nextLabels[paramName];
+        } else {
+            nextLabels[paramName] = trimmed;
+        }
+
+        setCustomParamLabels(nextLabels);
+        const nextOrdered = orderedParams.map(p => p.name === paramName ? { ...p, label: finalLabel } : p);
+        setOrderedParams(nextOrdered);
+
+        saveFilterSettingsToStorage(
+            selectedProc.id,
+            nextOrdered.map(p => p.name),
+            Array.from(hiddenParamNames),
+            nextLabels
+        );
+        setEditingFilterParam(null);
+        setToastMsg(`Etiqueta actualizada a "${finalLabel}".`);
+        setTimeout(() => setToastMsg(null), 2500);
+    };
+
+    const handleResetAllLabels = () => {
+        if (!selectedProc) return;
+        if (!confirm('¿Desea restablecer todas las etiquetas a sus nombres originales por defecto?')) return;
+        setCustomParamLabels({});
+        const nextOrdered = orderedParams.map(p => {
+            const orig = selectedProc.parameters.find(o => o.name === p.name);
+            return { ...p, label: orig ? orig.label : p.label };
+        });
+        setOrderedParams(nextOrdered);
+        saveFilterSettingsToStorage(
+            selectedProc.id,
+            nextOrdered.map(p => p.name),
+            Array.from(hiddenParamNames),
+            {}
+        );
+        setToastMsg('Todas las etiquetas han sido restablecidas a sus nombres originales.');
+        setTimeout(() => setToastMsg(null), 2500);
     };
 
     // Modal Crear / Editar SP
@@ -500,8 +638,8 @@ export default function ExecutionsPage() {
         setLoadingDbSps(true);
         try {
             const res = await fetch(`/api/executions/available-sps?profileId=${selectedProfileId || ''}&database=${selectedDatabase || ''}`);
-            const data = await res.json();
-            if (data.success && Array.isArray(data.procedures)) {
+            const data = await parseJsonResponse<any>(res, { success: false, procedures: [] });
+            if (data?.success && Array.isArray(data.procedures)) {
                 setAvailableDbSps(data.procedures);
             }
         } catch (err) {
@@ -521,9 +659,9 @@ export default function ExecutionsPage() {
         setDetectingParams(true);
         try {
             const res = await fetch(`/api/executions/detect-params?spName=${encodeURIComponent(modalProc.spName.trim())}&profileId=${selectedProfileId || ''}&database=${encodeURIComponent(selectedDatabase || '')}`);
-            const data = await res.json();
+            const data = await parseJsonResponse<any>(res, { success: false, message: 'No se pudieron detectar parámetros para este procedimiento.' });
 
-            if (data.success && Array.isArray(data.parameters)) {
+            if (data?.success && Array.isArray(data.parameters)) {
                 setModalProc(prev => ({
                     ...prev,
                     name: prev.name || data.spName.replace(/^(sp_|spze_|spza_|sp)/i, '').replace(/([A-Z])/g, ' $1').trim(),
@@ -532,7 +670,7 @@ export default function ExecutionsPage() {
                 setToastMsg(`✓ ${data.parameters.length} parámetros detectados automáticamente desde SQL Server.`);
                 setTimeout(() => setToastMsg(null), 3500);
             } else {
-                alert(data.message || 'No se pudieron detectar parámetros para este procedimiento.');
+                alert(data?.message || 'No se pudieron detectar parámetros para este procedimiento.');
             }
         } catch (err: any) {
             alert('Error al detectar parámetros: ' + err.message);
@@ -572,8 +710,8 @@ export default function ExecutionsPage() {
                 setTimeout(() => setToastMsg(null), 3000);
                 await loadProcedures();
             } else {
-                const err = await res.json();
-                alert(err.message || 'Error al guardar el procedimiento.');
+                const err = await parseJsonResponse(res, { message: 'Error al guardar el procedimiento.' });
+                alert(err?.message || 'Error al guardar el procedimiento.');
             }
         } catch (err: any) {
             alert(err.message);
@@ -608,7 +746,7 @@ export default function ExecutionsPage() {
         setLoadingLookup(true);
         try {
             const res = await fetch(`/api/executions/lookup?type=${type}&search=${encodeURIComponent(search)}&profileId=${selectedProfileId || ''}&database=${encodeURIComponent(selectedDatabase || '')}`);
-            const data = await res.json();
+            const data = await parseJsonResponse(res, []);
             if (Array.isArray(data)) {
                 setLookupData(data);
             }
@@ -665,7 +803,7 @@ export default function ExecutionsPage() {
                 })
             });
 
-            const json = await res.json();
+            const json = await parseJsonResponse<any>(res, { success: false, message: 'Respuesta inválida del servidor.' });
 
             if (!res.ok || !json.success) {
                 let errText = json.message || json.errorDetails || 'Error al ejecutar el procedimiento en SQL Server.';
@@ -683,7 +821,7 @@ export default function ExecutionsPage() {
                 data: json.data || []
             });
 
-            // Configurar columnas iniciales si aún no estaban definidas
+            // Configurar columnas iniciales si aún no estaban definidas o sincronizar columnas nuevas del SP
             const rawCols: string[] = json.columns || [];
             if (columnConfigs.length === 0) {
                 setColumnConfigs(rawCols.map(col => ({
@@ -691,6 +829,44 @@ export default function ExecutionsPage() {
                     customLabel: col,
                     visible: true
                 })));
+            } else {
+                // Sincronizar dinámicamente cualquier columna nueva que el SP retorne y que no esté en columnConfigs
+                const existingKeys = new Set(columnConfigs.map(c => c.originalKey));
+                const missingCols = rawCols.filter(col => !existingKeys.has(col));
+                if (missingCols.length > 0) {
+                    const updated = [...columnConfigs];
+                    missingCols.forEach(col => {
+                        if (/nacionalidad real/i.test(col)) {
+                            const idxNac = updated.findIndex(c => /^nacionalidad$/i.test(c.originalKey));
+                            if (idxNac >= 0) {
+                                updated.splice(idxNac + 1, 0, {
+                                    originalKey: col,
+                                    customLabel: col,
+                                    visible: true
+                                });
+                                return;
+                            }
+                        }
+                        if (/vendedor/i.test(col)) {
+                            const idxNombre = updated.findIndex(c => /nombre vendedor/i.test(c.originalKey));
+                            const idxVendedor = idxNombre >= 0 ? idxNombre : updated.findIndex(c => /vendedor/i.test(c.originalKey));
+                            if (idxVendedor >= 0) {
+                                updated.splice(idxVendedor + 1, 0, {
+                                    originalKey: col,
+                                    customLabel: col,
+                                    visible: true
+                                });
+                                return;
+                            }
+                        }
+                        updated.push({
+                            originalKey: col,
+                            customLabel: col,
+                            visible: true
+                        });
+                    });
+                    setColumnConfigs(updated);
+                }
             }
 
             // Seleccionar automáticamente columnas numéricas para totales
@@ -1128,36 +1304,114 @@ export default function ExecutionsPage() {
                         </div>
                     </div>
 
-                    {/* Panel de Ajustes de Filtros (Orden y Visibilidad) */}
+                    {/* Panel de Ajustes de Filtros (Orden, Visibilidad y Edición de Etiquetas) */}
                     {showFilterConfig && (
                         <div className="p-4 bg-slate-950/80 border-b border-slate-800 space-y-3">
-                            <h3 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                                Reordenar Ubicación y Visibilidad de Filtros
-                            </h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto p-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <h3 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                        Reordenar Ubicación, Visibilidad y Renombrar Filtros
+                                    </h3>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">
+                                        Haz clic en el lápiz o sobre el nombre para renombrar cualquier filtro. Presiona Enter o el check para guardar.
+                                    </p>
+                                </div>
+                                {Object.keys(customParamLabels).length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleResetAllLabels}
+                                        className="text-[10px] text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                                    >
+                                        Restablecer nombres originales
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-64 overflow-y-auto p-1">
                                 {orderedParams.map((p, idx) => {
                                     const isHidden = hiddenParamNames.has(p.name);
+                                    const isEditing = editingFilterParam === p.name;
                                     return (
                                         <div
                                             key={p.name}
                                             className={`flex items-center justify-between p-2 rounded-xl border text-xs transition-all ${
                                                 isHidden
                                                     ? 'bg-slate-900/40 border-slate-800 opacity-60'
-                                                    : 'bg-slate-900 border-slate-700 shadow-sm'
+                                                    : 'bg-slate-900 border-slate-700 shadow-sm hover:border-slate-600'
                                             }`}
                                         >
-                                            <div className="flex items-center gap-2 truncate pr-2">
+                                            <div className="flex items-center gap-2 truncate pr-2 flex-1 min-w-0">
                                                 <button
                                                     type="button"
                                                     onClick={() => toggleFilterVisibility(p.name)}
-                                                    className="text-slate-400 hover:text-white transition-colors"
+                                                    className="text-slate-400 hover:text-white transition-colors shrink-0 cursor-pointer"
                                                     title={isHidden ? 'Mostrar filtro' : 'Ocultar filtro'}
                                                 >
                                                     {isHidden ? <EyeOff className="w-4 h-4 text-red-400" /> : <Eye className="w-4 h-4 text-emerald-400" />}
                                                 </button>
-                                                <span className={`font-medium truncate ${isHidden ? 'line-through text-slate-500' : 'text-slate-200'}`}>
-                                                    {p.label}
-                                                </span>
+
+                                                {isEditing ? (
+                                                    <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                                                        <input
+                                                            type="text"
+                                                            value={tempFilterLabel}
+                                                            onChange={(e) => setTempFilterLabel(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    handleSaveFilterLabel(p.name, tempFilterLabel);
+                                                                } else if (e.key === 'Escape') {
+                                                                    setEditingFilterParam(null);
+                                                                }
+                                                            }}
+                                                            autoFocus
+                                                            className="bg-slate-950 border border-cyan-500 rounded px-2 py-0.5 text-xs text-white focus:outline-none w-full"
+                                                            placeholder="Nombre de etiqueta"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSaveFilterLabel(p.name, tempFilterLabel)}
+                                                            className="p-1 hover:bg-emerald-500/20 text-emerald-400 rounded shrink-0 cursor-pointer"
+                                                            title="Guardar etiqueta"
+                                                        >
+                                                            <Check className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setEditingFilterParam(null)}
+                                                            className="p-1 hover:bg-slate-800 text-slate-400 rounded shrink-0 cursor-pointer"
+                                                            title="Cancelar"
+                                                        >
+                                                            <X className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-1.5 truncate flex-1 min-w-0 group/label">
+                                                        <span
+                                                            onClick={() => {
+                                                                setEditingFilterParam(p.name);
+                                                                setTempFilterLabel(p.label);
+                                                            }}
+                                                            className={`font-medium truncate cursor-pointer hover:text-cyan-400 transition-colors ${
+                                                                isHidden ? 'line-through text-slate-500' : 'text-slate-200'
+                                                            }`}
+                                                            title="Clic para editar el nombre de la etiqueta"
+                                                        >
+                                                            {p.label}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setEditingFilterParam(p.name);
+                                                                setTempFilterLabel(p.label);
+                                                            }}
+                                                            className="opacity-0 group-hover/label:opacity-100 hover:text-cyan-400 text-slate-400 p-0.5 rounded transition-all shrink-0 cursor-pointer"
+                                                            title="Editar nombre de la etiqueta"
+                                                        >
+                                                            <Edit2 className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="flex items-center gap-1 shrink-0">

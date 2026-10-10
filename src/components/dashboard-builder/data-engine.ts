@@ -8,9 +8,11 @@ export interface ProcessedDataResult {
     allRows?: Record<string, any>[];
     totalCount: number;
     totalMetricSum?: number;
-    totalTiquetesSum?: number;
+    totalSumatoria?: number;
+    totalTiquetesSum?: number; // compatibilidad
     totalGlobalMetricSum?: number;
-    totalGlobalTiquetesSum?: number;
+    totalGlobalSumatoria?: number;
+    totalGlobalTiquetesSum?: number; // compatibilidad
 }
 
 /**
@@ -74,56 +76,68 @@ export function processWidgetData(rows: Record<string, any>[], widget: WidgetCon
             };
         }
 
-        // Agrupar por dimensión
+        // Agrupar por dimensión (soporta agrupación jerárquica padre-hijo si es compuesta como Usuario / TipoServicio)
         const groups = groupByDimension(filteredRows, widget.dimensionColumn, widget.metricColumn, widget.aggregation);
         sortGroups(groups, widget.sortBy, widget.sortOrder);
         
         // Totales globales de toda la consulta (100% de la base de datos)
         const totalGlobalMetricSum = groups.reduce((acc, g) => acc + (g.value > 0 ? g.value : 0), 0);
-        const totalGlobalTiquetesSum = groups.reduce((acc, g) => acc + g.count, 0);
+        const totalGlobalSumatoria = groups.reduce((acc, g) => acc + g.count, 0);
 
         // Subconjunto según Top N seleccionado (ej: Top 20)
         const sliced = widget.topN && widget.topN > 0 ? groups.slice(0, widget.topN) : groups;
         const totalMetricSum = sliced.reduce((acc, g) => acc + (g.value > 0 ? g.value : 0), 0);
-        const totalTiquetesSum = sliced.reduce((acc, g) => acc + g.count, 0);
+        const totalSumatoria = sliced.reduce((acc, g) => acc + g.count, 0);
 
-        // Mapear todas las filas sin truncar (para exportación completa a PDF y Excel)
-        const allRows = groups.map(g => {
+        const mapRow = (g: GroupItem) => {
             const pct = totalGlobalMetricSum > 0 ? (g.value / totalGlobalMetricSum) * 100 : 0;
-            const pctTkt = totalGlobalTiquetesSum > 0 ? (g.count / totalGlobalTiquetesSum) * 100 : 0;
+            const pctSum = totalGlobalSumatoria > 0 ? (g.count / totalGlobalSumatoria) * 100 : 0;
+
+            const mappedChildren = g.children?.map(ch => {
+                const chPct = totalGlobalMetricSum > 0 ? (ch.value / totalGlobalMetricSum) * 100 : 0;
+                const chPctSum = totalGlobalSumatoria > 0 ? (ch.count / totalGlobalSumatoria) * 100 : 0;
+                return {
+                    [widget.dimensionColumn!]: ch.label,
+                    [widget.metricColumn || 'conteo']: ch.value,
+                    registros: ch.count,
+                    sumatoria: ch.count,
+                    sumatoriaTiquetes: ch.count, // compat
+                    porcentaje: Math.round(chPct * 100) / 100,
+                    porcentajeSumatoria: Math.round(chPctSum * 100) / 100,
+                    porcentajeTiquetes: Math.round(chPctSum * 100) / 100, // compat
+                    isChild: true
+                };
+            });
+
             return {
                 [widget.dimensionColumn!]: g.label,
                 [widget.metricColumn || 'conteo']: g.value,
                 registros: g.count,
-                tiquetes: g.count,
-                sumatoriaTiquetes: g.count,
+                sumatoria: g.count,
+                sumatoriaTiquetes: g.count, // compat
                 porcentaje: Math.round(pct * 100) / 100,
-                porcentajeTiquetes: Math.round(pctTkt * 100) / 100
+                porcentajeSumatoria: Math.round(pctSum * 100) / 100,
+                porcentajeTiquetes: Math.round(pctSum * 100) / 100, // compat
+                isParentGroup: !!g.isParentGroup,
+                children: mappedChildren
             };
-        });
+        };
+
+        const allRows = groups.map(mapRow);
+        const rows = sliced.map(mapRow);
 
         return {
             labels: sliced.map(g => g.label),
             values: sliced.map(g => g.value),
-            rows: sliced.map(g => {
-                const pct = totalGlobalMetricSum > 0 ? (g.value / totalGlobalMetricSum) * 100 : 0;
-                const pctTkt = totalGlobalTiquetesSum > 0 ? (g.count / totalGlobalTiquetesSum) * 100 : 0;
-                return {
-                    [widget.dimensionColumn!]: g.label,
-                    [widget.metricColumn || 'conteo']: g.value,
-                    registros: g.count,
-                    tiquetes: g.count,
-                    sumatoriaTiquetes: g.count,
-                    porcentaje: Math.round(pct * 100) / 100,
-                    porcentajeTiquetes: Math.round(pctTkt * 100) / 100
-                };
-            }),
+            rows,
             allRows,
             totalCount: groups.length,
             totalMetricSum,
-            totalTiquetesSum,
+            totalSumatoria,
+            totalTiquetesSum: totalSumatoria,
             totalGlobalMetricSum,
-            totalGlobalTiquetesSum
+            totalGlobalSumatoria,
+            totalGlobalTiquetesSum: totalGlobalSumatoria
         };
     }
 
@@ -171,14 +185,36 @@ function calculateMetric(rows: Record<string, any>[], metricCol?: string, agg: A
     }
 }
 
-interface GroupItem {
+interface GroupChildItem {
     label: string;
     value: number;
     count: number;
 }
 
+interface GroupItem {
+    label: string;
+    value: number;
+    count: number;
+    isParentGroup?: boolean;
+    children?: GroupChildItem[];
+}
+
+/**
+ * Calcula agregación sobre un arreglo de números
+ */
+function aggregateNumberArray(vals: number[], agg: AggregationFn): number {
+    if (agg === 'COUNT') return vals.length;
+    if (agg === 'SUM') return vals.reduce((a, b) => a + b, 0);
+    if (agg === 'AVG') return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    if (agg === 'MIN') return vals.length > 0 ? Math.min(...vals) : 0;
+    if (agg === 'MAX') return vals.length > 0 ? Math.max(...vals) : 0;
+    return vals.length;
+}
+
 /**
  * Agrupa filas por una dimensión (simple o compuesta separada por / o ,) y calcula la agregación solicitada
+ * Si es compuesta (ej: Usuario / TipoServicio), agrupa jerárquicamente: el usuario aparece una sola vez
+ * como padre y dentro de él sus tipos de servicios detallados.
  */
 function groupByDimension(
     rows: Record<string, any>[],
@@ -188,22 +224,82 @@ function groupByDimension(
 ): GroupItem[] {
     const isComposite = dimCol.includes(' / ') || dimCol.includes(',');
     const dimCols = isComposite ? dimCol.split(/[\/,]/).map(c => c.trim()).filter(Boolean) : [dimCol];
-    const map = new Map<string, number[]>();
 
-    for (const r of rows) {
-        let label = '';
-        if (isComposite) {
-            const parts = dimCols.map(c => {
+    // Caso Jerárquico: Dimensión compuesta (ej. Usuario / TipoServicio)
+    if (isComposite && dimCols.length >= 2) {
+        const parentCol = dimCols[0];
+        const childCols = dimCols.slice(1);
+
+        // parentLabel -> { allVals: number[], childMap: Map<childLabel, number[]> }
+        const parentMap = new Map<string, { allVals: number[]; childMap: Map<string, number[]> }>();
+
+        for (const r of rows) {
+            const rawParent = r[parentCol];
+            const parentLabel = rawParent !== null && rawParent !== undefined && String(rawParent).trim() !== ''
+                ? String(rawParent).trim()
+                : '(En Blanco)';
+
+            const childParts = childCols.map(c => {
                 const val = r[c];
                 return val !== null && val !== undefined && String(val).trim() !== '' ? String(val).trim() : '(En Blanco)';
             });
-            label = parts.join(' / ');
-        } else {
-            const rawDim = r[dimCol];
-            label = rawDim !== null && rawDim !== undefined && String(rawDim).trim() !== ''
-                ? String(rawDim).trim()
-                : '(En Blanco)';
+            const childLabel = childParts.join(' / ');
+
+            let numVal = 1;
+            if (metricCol) {
+                const parsed = Number(r[metricCol]);
+                numVal = !isNaN(parsed) && isFinite(parsed) ? parsed : 0;
+            }
+
+            if (!parentMap.has(parentLabel)) {
+                parentMap.set(parentLabel, { allVals: [], childMap: new Map() });
+            }
+            const pEntry = parentMap.get(parentLabel)!;
+            pEntry.allVals.push(numVal);
+
+            if (!pEntry.childMap.has(childLabel)) {
+                pEntry.childMap.set(childLabel, []);
+            }
+            pEntry.childMap.get(childLabel)!.push(numVal);
         }
+
+        const result: GroupItem[] = [];
+        for (const [pLabel, pEntry] of parentMap.entries()) {
+            const parentVal = aggregateNumberArray(pEntry.allVals, agg);
+            const children: GroupChildItem[] = [];
+
+            for (const [cLabel, cVals] of pEntry.childMap.entries()) {
+                const childVal = aggregateNumberArray(cVals, agg);
+                children.push({
+                    label: cLabel,
+                    value: Math.round(childVal * 100) / 100,
+                    count: cVals.length
+                });
+            }
+
+            // Ordenar hijos por valor descendente por defecto
+            children.sort((a, b) => b.value - a.value || b.count - a.count);
+
+            result.push({
+                label: pLabel,
+                value: Math.round(parentVal * 100) / 100,
+                count: pEntry.allVals.length,
+                isParentGroup: true,
+                children
+            });
+        }
+
+        return result;
+    }
+
+    // Caso Simple: Dimensión única
+    const map = new Map<string, number[]>();
+
+    for (const r of rows) {
+        const rawDim = r[dimCol];
+        const label = rawDim !== null && rawDim !== undefined && String(rawDim).trim() !== ''
+            ? String(rawDim).trim()
+            : '(En Blanco)';
 
         let numVal = 1;
         if (metricCol) {
@@ -219,19 +315,7 @@ function groupByDimension(
 
     const result: GroupItem[] = [];
     for (const [label, vals] of map.entries()) {
-        let val = 0;
-        if (agg === 'COUNT') {
-            val = vals.length;
-        } else if (agg === 'SUM') {
-            val = vals.reduce((a, b) => a + b, 0);
-        } else if (agg === 'AVG') {
-            val = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-        } else if (agg === 'MIN') {
-            val = vals.length > 0 ? Math.min(...vals) : 0;
-        } else if (agg === 'MAX') {
-            val = vals.length > 0 ? Math.max(...vals) : 0;
-        }
-
+        const val = aggregateNumberArray(vals, agg);
         result.push({
             label,
             value: Math.round(val * 100) / 100,
@@ -243,7 +327,7 @@ function groupByDimension(
 }
 
 /**
- * Ordena los grupos por dimensión o métrica
+ * Ordena los grupos por dimensión o métrica (y sus hijos si los tiene)
  */
 function sortGroups(groups: GroupItem[], sortBy?: 'dimension' | 'metric', sortOrder?: 'asc' | 'desc') {
     const isAsc = sortOrder === 'asc';
@@ -253,9 +337,26 @@ function sortGroups(groups: GroupItem[], sortBy?: 'dimension' | 'metric', sortOr
         if (byMetric) {
             return isAsc ? a.value - b.value : b.value - a.value;
         } else {
-            return isAsc ? a.label.localeCompare(b.label) : b.label.localeCompare(a.label);
+            return isAsc 
+                ? a.label.localeCompare(b.label, 'es', { numeric: true }) 
+                : b.label.localeCompare(a.label, 'es', { numeric: true });
         }
     });
+
+    // Ordenar hijos también
+    for (const g of groups) {
+        if (g.children && g.children.length > 0) {
+            g.children.sort((a, b) => {
+                if (byMetric) {
+                    return isAsc ? a.value - b.value : b.value - a.value;
+                } else {
+                    return isAsc 
+                        ? a.label.localeCompare(b.label, 'es', { numeric: true }) 
+                        : b.label.localeCompare(a.label, 'es', { numeric: true });
+                }
+            });
+        }
+    }
 }
 
 /**

@@ -2,7 +2,7 @@
 ============================================================================
 PROYECTO: KOREX ANALYTICS
 RELEASE: POSTGRESQL (PL/pgSQL) COMPLETO Y AUTÓNOMO
-GENERADO: 2026-10-06T18:20:25.797Z
+GENERADO: 2026-10-09T18:04:04.037Z
 ============================================================================
 */
 
@@ -187,6 +187,22 @@ CREATE TABLE IF NOT EXISTS public."KAX_License" (
     "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 11. TABLA: KAX_FareBasisRule (Maestro de Configuración de Extracción de Fare Basis por Aerolínea)
+CREATE TABLE IF NOT EXISTS public."KAX_FareBasisRule" (
+    "id" SERIAL PRIMARY KEY,
+    "airlineCode" VARCHAR(20) NOT NULL UNIQUE,
+    "airlineName" VARCHAR(150) NOT NULL,
+    "startPos" INT NOT NULL DEFAULT 1,
+    "length" INT NOT NULL DEFAULT 2,
+    "separator" VARCHAR(10) NOT NULL DEFAULT '/',
+    "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS "IX_KAX_FareBasisRule_AirlineCode" ON public."KAX_FareBasisRule"("airlineCode");
+CREATE INDEX IF NOT EXISTS "IX_KAX_FareBasisRule_IsActive" ON public."KAX_FareBasisRule"("isActive");
+
+
 
 -- >>> INICIO ARCHIVO: 03_InitialData.sql <<<
 -- ============================================================================
@@ -239,6 +255,12 @@ SELECT
     '[{"name":"fechaInicial","label":"Fecha Inicial","type":"date","defaultValue":"FIRST_DAY_OF_MONTH","required":true},{"name":"fechaFinal","label":"Fecha Final","type":"date","defaultValue":"TODAY","required":true},{"name":"cd_cliente","label":"Cliente","type":"text","lookupType":"clientes","required":false}]',
     TRUE
 WHERE NOT EXISTS (SELECT 1 FROM public."KAX_ExecutionProcedure" WHERE "name" = 'Análisis de Ventas por Período');
+
+-- 4. Sembrado de Reglas Iniciales de Fare Basis (Ejemplo: American Airlines 001)
+INSERT INTO public."KAX_FareBasisRule" ("airlineCode", "airlineName", "startPos", "length", "separator", "isActive")
+SELECT '001', 'American Airlines', 3, 2, '/', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM public."KAX_FareBasisRule" WHERE "airlineCode" = '001');
+
 
 
 -- >>> INICIO ARCHIVO: 04_StoredProcedures.sql <<<
@@ -626,5 +648,135 @@ BEGIN
     ORDER BY r."id" ASC;
 END;
 $$ LANGUAGE plpgsql;
+
+-- 12. FUNCIÓN ESCALAR: fnkax_calcularfarebasisreal
+CREATE OR REPLACE FUNCTION public.fnkax_calcularfarebasisreal(
+    p_farebasisoriginal VARCHAR,
+    p_startpos INT,
+    p_length INT,
+    p_separator VARCHAR DEFAULT '/'
+)
+RETURNS VARCHAR AS $$
+DECLARE
+    v_sep VARCHAR := COALESCE(NULLIF(p_separator, ''), '/');
+    v_parts TEXT[];
+    v_transformed TEXT[] := ARRAY[]::TEXT[];
+    v_seg TEXT;
+BEGIN
+    IF p_farebasisoriginal IS NULL OR TRIM(p_farebasisoriginal) = '' THEN
+        RETURN p_farebasisoriginal;
+    END IF;
+
+    IF p_startpos IS NULL OR p_startpos < 1 OR p_length IS NULL OR p_length <= 0 THEN
+        RETURN p_farebasisoriginal;
+    END IF;
+
+    v_parts := string_to_array(p_farebasisoriginal, v_sep);
+    FOREACH v_seg IN ARRAY v_parts LOOP
+        v_transformed := array_append(v_transformed, substr(v_seg, p_startpos, p_length));
+    END LOOP;
+
+    RETURN array_to_string(v_transformed, v_sep);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- 13. FUNCIÓN: spkax_farebasisrulelistar
+CREATE OR REPLACE FUNCTION public.spkax_farebasisrulelistar(
+    p_isactive BOOLEAN DEFAULT NULL,
+    p_search VARCHAR DEFAULT NULL
+)
+RETURNS TABLE (
+    "id" INT,
+    "airlineCode" VARCHAR,
+    "airlineName" VARCHAR,
+    "startPos" INT,
+    "length" INT,
+    "separator" VARCHAR,
+    "isActive" BOOLEAN,
+    "createdAt" TIMESTAMPTZ,
+    "updatedAt" TIMESTAMPTZ
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        r."id",
+        r."airlineCode",
+        r."airlineName",
+        r."startPos",
+        r."length",
+        r."separator",
+        r."isActive",
+        r."createdAt",
+        r."updatedAt"
+    FROM public."KAX_FareBasisRule" r
+    WHERE (p_isactive IS NULL OR r."isActive" = p_isactive)
+      AND (p_search IS NULL OR r."airlineCode" ILIKE '%' || p_search || '%' OR r."airlineName" ILIKE '%' || p_search || '%')
+    ORDER BY r."airlineCode" ASC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 14. FUNCIÓN: spkax_farebasisruleguardar
+CREATE OR REPLACE FUNCTION public.spkax_farebasisruleguardar(
+    p_id INT,
+    p_airlinecode VARCHAR,
+    p_airlinename VARCHAR,
+    p_startpos INT DEFAULT 1,
+    p_length INT DEFAULT 2,
+    p_separator VARCHAR DEFAULT '/',
+    p_isactive BOOLEAN DEFAULT TRUE
+)
+RETURNS INT AS $$
+DECLARE
+    v_saved_id INT;
+    v_sep VARCHAR := COALESCE(NULLIF(TRIM(p_separator), ''), '/');
+    v_start INT := CASE WHEN p_startpos < 1 THEN 1 ELSE p_startpos END;
+    v_len INT := CASE WHEN p_length < 1 THEN 1 ELSE p_length END;
+BEGIN
+    IF p_id IS NOT NULL AND EXISTS (SELECT 1 FROM public."KAX_FareBasisRule" WHERE "id" = p_id) THEN
+        UPDATE public."KAX_FareBasisRule"
+        SET "airlineCode" = TRIM(p_airlinecode),
+            "airlineName" = TRIM(p_airlinename),
+            "startPos" = v_start,
+            "length" = v_len,
+            "separator" = v_sep,
+            "isActive" = p_isactive,
+            "updatedAt" = NOW()
+        WHERE "id" = p_id;
+        v_saved_id := p_id;
+    ELSE
+        IF EXISTS (SELECT 1 FROM public."KAX_FareBasisRule" WHERE "airlineCode" = TRIM(p_airlinecode)) THEN
+            UPDATE public."KAX_FareBasisRule"
+            SET "airlineName" = TRIM(p_airlinename),
+                "startPos" = v_start,
+                "length" = v_len,
+                "separator" = v_sep,
+                "isActive" = p_isactive,
+                "updatedAt" = NOW()
+            WHERE "airlineCode" = TRIM(p_airlinecode);
+            SELECT "id" INTO v_saved_id FROM public."KAX_FareBasisRule" WHERE "airlineCode" = TRIM(p_airlinecode);
+        ELSE
+            INSERT INTO public."KAX_FareBasisRule" (
+                "airlineCode", "airlineName", "startPos", "length", "separator", "isActive", "createdAt", "updatedAt"
+            )
+            VALUES (
+                TRIM(p_airlinecode), TRIM(p_airlinename), v_start, v_len, v_sep, p_isactive, NOW(), NOW()
+            )
+            RETURNING "id" INTO v_saved_id;
+        END IF;
+    END IF;
+
+    RETURN v_saved_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 15. PROCEDIMIENTO: spkax_farebasisruleeliminar
+CREATE OR REPLACE PROCEDURE public.spkax_farebasisruleeliminar(
+    p_id INT
+) AS $$
+BEGIN
+    DELETE FROM public."KAX_FareBasisRule" WHERE "id" = p_id;
+END;
+$$ LANGUAGE plpgsql;
+
 
 

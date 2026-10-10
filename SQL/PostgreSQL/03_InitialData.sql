@@ -48,3 +48,9 @@ SELECT
     '[{"name":"fechaInicial","label":"Fecha Inicial","type":"date","defaultValue":"FIRST_DAY_OF_MONTH","required":true},{"name":"fechaFinal","label":"Fecha Final","type":"date","defaultValue":"TODAY","required":true},{"name":"cd_cliente","label":"Cliente","type":"text","lookupType":"clientes","required":false}]',
     TRUE
 WHERE NOT EXISTS (SELECT 1 FROM public."KAX_ExecutionProcedure" WHERE "name" = 'Análisis de Ventas por Período');
+
+-- 4. Sembrado de Reglas Iniciales de Fare Basis (Ejemplo: American Airlines 001)
+INSERT INTO public."KAX_FareBasisRule" ("airlineCode", "airlineName", "startPos", "length", "separator", "isActive")
+SELECT '001', 'American Airlines', 3, 2, '/', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM public."KAX_FareBasisRule" WHERE "airlineCode" = '001');
+

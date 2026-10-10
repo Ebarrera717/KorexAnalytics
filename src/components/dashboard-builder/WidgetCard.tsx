@@ -239,21 +239,51 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
         }
 
         const wb = XLSX.utils.book_new();
-        const sheetData: any[] = rowsToExport.map(r => ({
-            [widget.dimensionColumn || 'Dimensión']: r[widget.dimensionColumn!],
-            [`${widget.aggregation} (${widget.metricColumn || 'Valor'})`]: r[widget.metricColumn || 'conteo'],
-            'Participación (%)': `${r.porcentaje ?? 0}%`,
-            'Sumatoria Tiquetes': r.sumatoriaTiquetes ?? r.registros ?? 0,
-            'Part. Tiquetes (%)': `${r.porcentajeTiquetes ?? 0}%`
-        }));
+        const sheetData: any[] = [];
+
+        rowsToExport.forEach(r => {
+            const isParent = !!r.isParentGroup;
+            const hasChildren = isParent && Array.isArray(r.children) && r.children.length > 0;
+
+            if (isParent) {
+                // Fila del Padre (ej: Usuario)
+                sheetData.push({
+                    [widget.dimensionColumn || 'Dimensión']: `[USUARIO] ${r[widget.dimensionColumn!]}`,
+                    [`${widget.aggregation} (${widget.metricColumn || 'Valor'})`]: r[widget.metricColumn || 'conteo'],
+                    'Participación (%)': `${r.porcentaje ?? 0}%`,
+                    'Sumatoria': r.sumatoria ?? r.sumatoriaTiquetes ?? r.registros ?? 0,
+                    'Participación Sumatoria (%)': `${r.porcentajeSumatoria ?? r.porcentajeTiquetes ?? 0}%`
+                });
+
+                if (hasChildren) {
+                    r.children.forEach((ch: any) => {
+                        sheetData.push({
+                            [widget.dimensionColumn || 'Dimensión']: `    └── ${ch[widget.dimensionColumn!]}`,
+                            [`${widget.aggregation} (${widget.metricColumn || 'Valor'})`]: ch[widget.metricColumn || 'conteo'],
+                            'Participación (%)': `${ch.porcentaje ?? 0}%`,
+                            'Sumatoria': ch.sumatoria ?? ch.sumatoriaTiquetes ?? ch.registros ?? 0,
+                            'Participación Sumatoria (%)': `${ch.porcentajeSumatoria ?? ch.porcentajeTiquetes ?? 0}%`
+                        });
+                    });
+                }
+            } else {
+                sheetData.push({
+                    [widget.dimensionColumn || 'Dimensión']: r[widget.dimensionColumn!],
+                    [`${widget.aggregation} (${widget.metricColumn || 'Valor'})`]: r[widget.metricColumn || 'conteo'],
+                    'Participación (%)': `${r.porcentaje ?? 0}%`,
+                    'Sumatoria': r.sumatoria ?? r.sumatoriaTiquetes ?? r.registros ?? 0,
+                    'Participación Sumatoria (%)': `${r.porcentajeSumatoria ?? r.porcentajeTiquetes ?? 0}%`
+                });
+            }
+        });
 
         // Agregar fila de Total General exacto
         sheetData.push({
             [widget.dimensionColumn || 'Dimensión']: `TOTAL (${processed.totalCount} grupos)`,
             [`${widget.aggregation} (${widget.metricColumn || 'Valor'})`]: processed.totalGlobalMetricSum ?? processed.totalMetricSum ?? 0,
             'Participación (%)': '100.00%',
-            'Sumatoria Tiquetes': processed.totalGlobalTiquetesSum ?? processed.totalTiquetesSum ?? 0,
-            'Part. Tiquetes (%)': '100.00%'
+            'Sumatoria': processed.totalGlobalSumatoria ?? processed.totalGlobalTiquetesSum ?? processed.totalSumatoria ?? processed.totalTiquetesSum ?? 0,
+            'Participación Sumatoria (%)': '100.00%'
         });
 
         const ws = XLSX.utils.json_to_sheet(sheetData);
@@ -279,26 +309,66 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
 
         const title = widget.title;
         const totalVal = formatMetricNumber(processed.totalGlobalMetricSum ?? processed.totalMetricSum ?? 0);
-        const totalTkts = formatMetricNumber(processed.totalGlobalTiquetesSum ?? processed.totalTiquetesSum ?? 0);
+        const totalSum = formatMetricNumber(processed.totalGlobalSumatoria ?? processed.totalGlobalTiquetesSum ?? processed.totalSumatoria ?? processed.totalTiquetesSum ?? 0);
 
         let rowsHtml = '';
         rowsToExport.forEach((r, idx) => {
             const dim = r[widget.dimensionColumn!] ?? '';
             const metric = formatMetricNumber(r[widget.metricColumn || 'conteo']);
             const pct = r.porcentaje !== undefined ? `${r.porcentaje.toFixed(2)}%` : '0%';
-            const tkts = formatMetricNumber(r.sumatoriaTiquetes ?? r.registros ?? 0);
-            const pctTkts = r.porcentajeTiquetes !== undefined ? `${r.porcentajeTiquetes.toFixed(2)}%` : '0%';
+            const sumVal = formatMetricNumber(r.sumatoria ?? r.sumatoriaTiquetes ?? r.registros ?? 0);
+            const pctSum = (r.porcentajeSumatoria !== undefined ? r.porcentajeSumatoria : r.porcentajeTiquetes) !== undefined
+                ? `${(r.porcentajeSumatoria ?? r.porcentajeTiquetes).toFixed(2)}%`
+                : '0%';
 
-            rowsHtml += `
-                <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
-                    <td style="padding: 7px 10px; color: #64748b; font-family: monospace; text-align: center;">${idx + 1}</td>
-                    <td style="padding: 7px 10px; font-weight: 600; color: #1e293b;">${dim}</td>
-                    <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #0284c7;">${metric}</td>
-                    <td style="padding: 7px 10px; text-align: right; font-weight: 600; color: #059669;">${pct}</td>
-                    <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #d97706; background-color: #fef3c7;">${tkts}</td>
-                    <td style="padding: 7px 10px; text-align: right; font-weight: 600; color: #b45309;">${pctTkts}</td>
-                </tr>
-            `;
+            const isParent = !!r.isParentGroup;
+            const hasChildren = isParent && Array.isArray(r.children) && r.children.length > 0;
+
+            if (isParent) {
+                rowsHtml += `
+                    <tr style="border-top: 2px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; background-color: #f1f5f9; font-size: 11px; font-weight: 700;">
+                        <td style="padding: 7px 10px; color: #475569; font-family: monospace; text-align: center;">${idx + 1}</td>
+                        <td style="padding: 7px 10px; color: #0f172a;"><strong>[USUARIO] ${dim}</strong></td>
+                        <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #0284c7;">${metric}</td>
+                        <td style="padding: 7px 10px; text-align: right; font-weight: 700; color: #059669;">${pct}</td>
+                        <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #d97706; background-color: #fef3c7;">${sumVal}</td>
+                        <td style="padding: 7px 10px; text-align: right; font-weight: 700; color: #b45309;">${pctSum}</td>
+                    </tr>
+                `;
+                if (hasChildren) {
+                    r.children.forEach((ch: any) => {
+                        const chDim = ch[widget.dimensionColumn!] ?? '';
+                        const chMetric = formatMetricNumber(ch[widget.metricColumn || 'conteo']);
+                        const chPct = ch.porcentaje !== undefined ? `${ch.porcentaje.toFixed(2)}%` : '0%';
+                        const chSumVal = formatMetricNumber(ch.sumatoria ?? ch.sumatoriaTiquetes ?? ch.registros ?? 0);
+                        const chPctSum = (ch.porcentajeSumatoria !== undefined ? ch.porcentajeSumatoria : ch.porcentajeTiquetes) !== undefined
+                            ? `${(ch.porcentajeSumatoria ?? ch.porcentajeTiquetes).toFixed(2)}%`
+                            : '0%';
+
+                        rowsHtml += `
+                            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 10px; color: #475569;">
+                                <td></td>
+                                <td style="padding: 5px 10px 5px 28px; color: #334155;">└── ${chDim}</td>
+                                <td style="padding: 5px 10px; text-align: right; font-family: monospace; color: #0284c7;">${chMetric}</td>
+                                <td style="padding: 5px 10px; text-align: right; color: #059669;">${chPct}</td>
+                                <td style="padding: 5px 10px; text-align: right; font-family: monospace; color: #d97706; background-color: #fffbeb;">${chSumVal}</td>
+                                <td style="padding: 5px 10px; text-align: right; color: #b45309;">${chPctSum}</td>
+                            </tr>
+                        `;
+                    });
+                }
+            } else {
+                rowsHtml += `
+                    <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+                        <td style="padding: 7px 10px; color: #64748b; font-family: monospace; text-align: center;">${idx + 1}</td>
+                        <td style="padding: 7px 10px; font-weight: 600; color: #1e293b;">${dim}</td>
+                        <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #0284c7;">${metric}</td>
+                        <td style="padding: 7px 10px; text-align: right; font-weight: 600; color: #059669;">${pct}</td>
+                        <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #d97706; background-color: #fef3c7;">${sumVal}</td>
+                        <td style="padding: 7px 10px; text-align: right; font-weight: 600; color: #b45309;">${pctSum}</td>
+                    </tr>
+                `;
+            }
         });
 
         const html = `
@@ -352,8 +422,8 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                             <th style="text-align: left;">${widget.dimensionColumn || 'Dimensión'}</th>
                             <th style="text-align: right;">${widget.aggregation} (${widget.metricColumn || 'Valor'})</th>
                             <th style="text-align: right;">Participación (%)</th>
-                            <th style="text-align: right;">Sumatoria Tiquetes</th>
-                            <th style="text-align: right;">Part. Tiquetes (%)</th>
+                            <th style="text-align: right;">Sumatoria</th>
+                            <th style="text-align: right;">Participación (%)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -364,7 +434,7 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                             <td colspan="2" style="color: #0284c7;">TOTAL (${processed.totalCount} grupos evaluados)</td>
                             <td style="text-align: right; color: #0284c7; font-family: monospace;">${totalVal}</td>
                             <td style="text-align: right; color: #059669;">100.00%</td>
-                            <td style="text-align: right; color: #d97706; background-color: #fef3c7; font-family: monospace;">${totalTkts}</td>
+                            <td style="text-align: right; color: #d97706; background-color: #fef3c7; font-family: monospace;">${totalSum}</td>
                             <td style="text-align: right; color: #b45309;">100.00%</td>
                         </tr>
                     </tfoot>
@@ -454,7 +524,7 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                             {formatMetricNumber(processed.kpiValue || 0)}
                         </div>
                         <div className="text-xs text-slate-400 mt-1 font-medium">
-                            {formatMetricNumber(processed.totalCount)} {widget.title.toLowerCase().includes('tiquete') ? 'tiquetes contabilizados' : 'registros evaluados'}
+                            {formatMetricNumber(processed.totalCount)} registros evaluados
                         </div>
                     </div>
                 ) : widget.type === 'pivot_table' ? (
@@ -468,52 +538,116 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                                     </th>
                                     <th className="px-3 py-2 text-right font-semibold text-slate-300">Participación (%)</th>
                                     <th className="px-3 py-2 text-right font-bold text-amber-300 bg-amber-500/10 border-l border-r border-amber-500/20">
-                                        Sumatoria Tiquetes
+                                        Sumatoria
                                     </th>
-                                    <th className="px-3 py-2 text-right font-semibold text-slate-300">Part. Tiquetes (%)</th>
+                                    <th className="px-3 py-2 text-right font-semibold text-slate-300">Participación (%)</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800/60">
                                 {processed.rows && processed.rows.length > 0 ? (
-                                    processed.rows.map((row, idx) => (
-                                        <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
-                                            <td className="px-3 py-1.5 font-medium text-slate-200">
-                                                {row[widget.dimensionColumn!]}
-                                            </td>
-                                            <td className="px-3 py-1.5 text-right font-mono text-cyan-400 font-semibold">
-                                                {formatMetricNumber(row[widget.metricColumn || 'conteo'])}
-                                            </td>
-                                            <td className="px-3 py-1.5 text-right font-mono">
-                                                <div className="flex items-center justify-end space-x-1.5">
-                                                    <div className="w-12 bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                                                        <div
-                                                            className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full"
-                                                            style={{ width: `${Math.min(row.porcentaje || 0, 100)}%` }}
-                                                        />
-                                                    </div>
-                                                    <span className="text-emerald-400 font-bold text-[11px]">
-                                                        {row.porcentaje !== undefined ? `${row.porcentaje.toFixed(2)}%` : '0%'}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-3 py-1.5 text-right font-mono text-amber-300 font-bold bg-amber-500/5 border-l border-r border-amber-500/15">
-                                                {formatMetricNumber(row.sumatoriaTiquetes ?? row.registros)}
-                                            </td>
-                                            <td className="px-3 py-1.5 text-right font-mono">
-                                                <div className="flex items-center justify-end space-x-1.5">
-                                                    <div className="w-12 bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                                                        <div
-                                                            className="bg-gradient-to-r from-amber-500 to-yellow-400 h-full rounded-full"
-                                                            style={{ width: `${Math.min(row.porcentajeTiquetes || 0, 100)}%` }}
-                                                        />
-                                                    </div>
-                                                    <span className="text-amber-400 font-bold text-[11px]">
-                                                        {row.porcentajeTiquetes !== undefined ? `${row.porcentajeTiquetes.toFixed(2)}%` : '0%'}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
+                                    processed.rows.map((row, idx) => {
+                                        const isParent = !!row.isParentGroup;
+                                        const hasChildren = isParent && Array.isArray(row.children) && row.children.length > 0;
+                                        return (
+                                            <React.Fragment key={idx}>
+                                                {/* Fila del Padre (ej: Usuario con su subtotal global) */}
+                                                <tr className={`transition-colors ${isParent ? 'bg-slate-900/90 hover:bg-slate-850 font-semibold border-t border-slate-700/60' : 'hover:bg-slate-800/50'}`}>
+                                                    <td className="px-3 py-1.5 font-medium text-slate-200">
+                                                        <div className="flex items-center space-x-1.5">
+                                                            {isParent && (
+                                                                <span className="text-[9px] bg-cyan-950 text-cyan-300 border border-cyan-800/60 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
+                                                                    USUARIO
+                                                                </span>
+                                                            )}
+                                                            <span className={isParent ? 'text-white font-bold tracking-wide' : ''}>
+                                                                {row[widget.dimensionColumn!]}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-1.5 text-right font-mono text-cyan-400 font-bold">
+                                                        {formatMetricNumber(row[widget.metricColumn || 'conteo'])}
+                                                    </td>
+                                                    <td className="px-3 py-1.5 text-right font-mono">
+                                                        <div className="flex items-center justify-end space-x-1.5">
+                                                            <div className="w-12 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                                                <div
+                                                                    className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full"
+                                                                    style={{ width: `${Math.min(row.porcentaje || 0, 100)}%` }}
+                                                                />
+                                                            </div>
+                                                            <span className="text-emerald-400 font-bold text-[11px]">
+                                                                {row.porcentaje !== undefined ? `${row.porcentaje.toFixed(2)}%` : '0%'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-1.5 text-right font-mono text-amber-300 font-bold bg-amber-500/5 border-l border-r border-amber-500/15">
+                                                        {formatMetricNumber(row.sumatoria ?? row.sumatoriaTiquetes ?? row.registros)}
+                                                    </td>
+                                                    <td className="px-3 py-1.5 text-right font-mono">
+                                                        <div className="flex items-center justify-end space-x-1.5">
+                                                            <div className="w-12 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                                                <div
+                                                                    className="bg-gradient-to-r from-amber-500 to-yellow-400 h-full rounded-full"
+                                                                    style={{ width: `${Math.min(row.porcentajeSumatoria ?? row.porcentajeTiquetes ?? 0, 100)}%` }}
+                                                                />
+                                                            </div>
+                                                            <span className="text-amber-400 font-bold text-[11px]">
+                                                                {row.porcentajeSumatoria !== undefined
+                                                                    ? `${row.porcentajeSumatoria.toFixed(2)}%`
+                                                                    : (row.porcentajeTiquetes !== undefined ? `${row.porcentajeTiquetes.toFixed(2)}%` : '0%')}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+
+                                                {/* Detalle de Tipos de Servicio dentro del Usuario */}
+                                                {hasChildren && row.children.map((child: any, cIdx: number) => (
+                                                    <tr key={`${idx}-${cIdx}`} className="bg-slate-950/40 hover:bg-slate-900/60 transition-colors text-slate-300">
+                                                        <td className="pl-6 pr-3 py-1 font-normal">
+                                                            <div className="flex items-center space-x-2">
+                                                                <span className="text-slate-600 font-mono text-xs select-none">└──</span>
+                                                                <span className="text-slate-300 text-[11px] font-medium">{child[widget.dimensionColumn!]}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-1 text-right font-mono text-cyan-300/90 text-[11px]">
+                                                            {formatMetricNumber(child[widget.metricColumn || 'conteo'])}
+                                                        </td>
+                                                        <td className="px-3 py-1 text-right font-mono text-[11px]">
+                                                            <div className="flex items-center justify-end space-x-1.5">
+                                                                <div className="w-10 bg-slate-800 rounded-full h-1 overflow-hidden">
+                                                                    <div
+                                                                        className="bg-cyan-500/70 h-full rounded-full"
+                                                                        style={{ width: `${Math.min(child.porcentaje || 0, 100)}%` }}
+                                                                    />
+                                                                </div>
+                                                                <span className="text-emerald-400/90 text-[10px]">
+                                                                    {child.porcentaje !== undefined ? `${child.porcentaje.toFixed(2)}%` : '0%'}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-1 text-right font-mono text-amber-300/90 bg-amber-500/5 border-l border-r border-amber-500/10 text-[11px]">
+                                                            {formatMetricNumber(child.sumatoria ?? child.sumatoriaTiquetes ?? child.registros)}
+                                                        </td>
+                                                        <td className="px-3 py-1 text-right font-mono text-[11px]">
+                                                            <div className="flex items-center justify-end space-x-1.5">
+                                                                <div className="w-10 bg-slate-800 rounded-full h-1 overflow-hidden">
+                                                                    <div
+                                                                        className="bg-amber-500/70 h-full rounded-full"
+                                                                        style={{ width: `${Math.min(child.porcentajeSumatoria ?? child.porcentajeTiquetes ?? 0, 100)}%` }}
+                                                                    />
+                                                                </div>
+                                                                <span className="text-amber-400/90 text-[10px]">
+                                                                    {child.porcentajeSumatoria !== undefined
+                                                                        ? `${child.porcentajeSumatoria.toFixed(2)}%`
+                                                                        : (child.porcentajeTiquetes !== undefined ? `${child.porcentajeTiquetes.toFixed(2)}%` : '0%')}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </React.Fragment>
+                                        );
+                                    })
                                 ) : (
                                     <tr>
                                         <td colSpan={5} className="text-center py-6 text-slate-500">
@@ -535,7 +669,7 @@ export const WidgetCard: React.FC<WidgetCardProps> = ({ widget, data, onEdit, on
                                             100.00%
                                         </td>
                                         <td className="px-3 py-2 text-right font-mono text-amber-300 font-black bg-amber-500/10 border-l border-r border-amber-500/20 text-xs">
-                                            {formatMetricNumber(processed.totalGlobalTiquetesSum ?? processed.totalTiquetesSum ?? 0)}
+                                            {formatMetricNumber(processed.totalGlobalSumatoria ?? processed.totalGlobalTiquetesSum ?? processed.totalSumatoria ?? processed.totalTiquetesSum ?? 0)}
                                         </td>
                                         <td className="px-3 py-2 text-right font-mono text-amber-400 font-bold">
                                             100.00%

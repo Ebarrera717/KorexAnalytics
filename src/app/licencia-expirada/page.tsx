@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, KeyRound, CheckCircle2, AlertCircle, RefreshCw, Building, FileText } from 'lucide-react';
+import { parseJsonResponse } from '@/lib/safe-json';
 
 export default function LicenciaExpiradaPage() {
     const [clientName, setClientName] = useState('');
@@ -14,8 +15,12 @@ export default function LicenciaExpiradaPage() {
 
     useEffect(() => {
         fetch('/api/license')
-            .then(res => res.json())
+            .then(res => parseJsonResponse<any>(res, null))
             .then(data => {
+                if (!data) {
+                    setCheckingStatus(false);
+                    return;
+                }
                 if (data.clientName) setClientName(data.clientName);
                 if (data.nit) setNit(data.nit);
 
@@ -63,10 +68,10 @@ export default function LicenciaExpiradaPage() {
                 })
             });
 
-            const data = await res.json();
+            const data = await parseJsonResponse<any>(res, { success: false, message: 'Respuesta inválida del servidor' });
 
-            if (!res.ok || !data.success) {
-                throw new Error(data.message || 'Error al validar la clave de licencia');
+            if (!res.ok || !data?.success) {
+                throw new Error(data?.message || 'Error al validar la clave de licencia');
             }
 
             setStatusMessage({

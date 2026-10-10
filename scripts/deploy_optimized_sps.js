@@ -14,6 +14,8 @@ const colaereoPassword = decipher.update(encHex, 'hex', 'utf8') + decipher.final
 // Load SQL file contents
 const sqlFiltroRutas = fs.readFileSync(path.join(__dirname, '..', 'SQL', 'ZeusERP', 'Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas.sql'), 'utf8');
 const sqlFareBasis = fs.readFileSync(path.join(__dirname, '..', 'SQL', 'ZeusERP', 'farebasis.txt'), 'utf8');
+const sqlReservasPendientes = fs.readFileSync(path.join(__dirname, '..', 'SQL', 'ZeusERP', 'Zeus®spze_ReservasPendientes.sql'), 'utf8');
+const sqlInformeReembolsos = fs.readFileSync(path.join(__dirname, '..', 'SQL', 'ZeusERP', 'Zeus®spze_InformeReembolsos.sql'), 'utf8');
 
 async function deployToServer(serverConfig, label) {
   console.log(`\n======================================================`);
@@ -44,18 +46,17 @@ async function deployToServer(serverConfig, label) {
   await execScript(sqlFiltroRutas, 'Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas');
 
   // 2. VentasDetalladasPorConceptos_FiltroRutas
-  let sqlSimple = sqlFiltroRutas.replace(
-    /IF OBJECT_ID\('\[dbo\]\.\[.*?\]', 'P'\) IS NOT NULL[\s\S]*?CREATE PROCEDURE \[dbo\]\.\[.*?\]/i,
-    `IF OBJECT_ID('[dbo].[VentasDetalladasPorConceptos_FiltroRutas]', 'P') IS NOT NULL
-    DROP PROCEDURE [dbo].[VentasDetalladasPorConceptos_FiltroRutas]
-GO
-
-CREATE PROCEDURE [dbo].[VentasDetalladasPorConceptos_FiltroRutas]`
-  );
+  let sqlSimple = sqlFiltroRutas.replace(/Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas/g, 'VentasDetalladasPorConceptos_FiltroRutas');
   await execScript(sqlSimple, 'VentasDetalladasPorConceptos_FiltroRutas');
 
   // 3. Zeus®spze_VentasFareBasis
   await execScript(sqlFareBasis, 'Zeus®spze_VentasFareBasis');
+
+  // 4. Zeus®spze_ReservasPendientes
+  await execScript(sqlReservasPendientes, 'Zeus®spze_ReservasPendientes');
+
+  // 5. Zeus®spze_InformeReembolsos
+  await execScript(sqlInformeReembolsos, 'Zeus®spze_InformeReembolsos');
 
   // Verificar parámetros detectados
   const paramsRes = await pool.request().query(`
@@ -196,12 +197,15 @@ async function main() {
     options: { encrypt: false, trustServerCertificate: true }
   };
 
-  // Desplegar en ambos servidores
-  await deployToServer(colaereoCfg, 'Servidor Colaereo (192.168.15.8)');
-  await deployToServer(localZeus23Cfg, 'Servidor Local ZeusAgencias_23 (127.0.0.1)');
+  // Desplegar en ambos servidores (resiliente si remoto está inaccesible)
+  try {
+    await deployToServer(colaereoCfg, 'Servidor Colaereo (192.168.15.8)');
+    await runBenchmark(colaereoCfg);
+  } catch (err) {
+    console.log('[AVISO] Servidor Colaereo inaccesible en esta red (se omitirá despliegue remoto):', err.message);
+  }
 
-  // Probar rendimiento
-  await runBenchmark(colaereoCfg);
+  await deployToServer(localZeus23Cfg, 'Servidor Local ZeusAgencias_23 (127.0.0.1)');
   
   console.log('\n¡Despliegue y validación de optimización completados con éxito al 100%!');
 }

@@ -6,6 +6,7 @@ import {
     RefreshCw, Lock, Mail, User, Building, FileText, Check, X, ShieldCheck,
     Calendar, Clock
 } from 'lucide-react';
+import { parseJsonResponse } from '@/lib/safe-json';
 
 interface UserEntity {
     id: number;
@@ -65,10 +66,10 @@ export default function UsersManagementPage() {
                 fetch('/api/license')
             ]);
 
-            const usersData = await usersRes.json();
-            const licData = await licRes.json();
+            const usersData = await parseJsonResponse<any>(usersRes, { success: false, users: [], roles: [] });
+            const licData = await parseJsonResponse<any>(licRes, null);
 
-            if (usersData.success) {
+            if (usersData?.success) {
                 setUsers(usersData.users || []);
                 setRoles(usersData.roles || []);
                 if (usersData.roles && usersData.roles.length > 0) {
@@ -146,9 +147,9 @@ export default function UsersManagementPage() {
                 body: JSON.stringify(payload)
             });
 
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                throw new Error(data.message || 'Error al guardar usuario');
+            const data = await parseJsonResponse<any>(res, { success: false, message: 'Respuesta inválida del servidor' });
+            if (!res.ok || !data?.success) {
+                throw new Error(data?.message || 'Error al guardar usuario');
             }
 
             setShowUserModal(false);
@@ -177,9 +178,9 @@ export default function UsersManagementPage() {
                 body: JSON.stringify({ licenseKey: licenseKeyInput.trim() })
             });
 
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                throw new Error(data.message || 'Error al validar clave de licencia');
+            const data = await parseJsonResponse<any>(res, { success: false, message: 'Respuesta inválida del servidor' });
+            if (!res.ok || !data?.success) {
+                throw new Error(data?.message || 'Error al validar clave de licencia');
             }
 
             setLicenseMessage({

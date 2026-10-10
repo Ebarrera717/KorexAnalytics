@@ -14,4 +14,5 @@ export * from './sql-profiles-service';
 export * from './kax-db';
 export * from './kax-license';
 export * from './kax-permissions';
+export * from './farebasis-service';
 

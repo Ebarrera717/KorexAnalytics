@@ -75,3 +75,12 @@ BEGIN
         1
     );
 END;
+
+-- 4. Sembrado de Reglas Iniciales de Fare Basis (Ejemplo: American Airlines 001)
+IF NOT EXISTS (SELECT 1 FROM dbo.[KAX_FareBasisRule] WHERE [airlineCode] = '001')
+BEGIN
+    INSERT INTO dbo.[KAX_FareBasisRule] ([airlineCode], [airlineName], [startPos], [length], [separator], [isActive])
+    VALUES ('001', 'American Airlines', 3, 2, '/', 1);
+END;
+
+

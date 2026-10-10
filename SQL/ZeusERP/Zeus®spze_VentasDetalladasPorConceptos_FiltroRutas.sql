@@ -10,6 +10,158 @@ IF OBJECT_ID('[dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]', 'P')
     DROP PROCEDURE [dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]
 GO
 
+-- 1. Tabla de Configuración de Reglas de Fare Basis por Aerolínea
+IF OBJECT_ID('dbo.KAX_FareBasisRule', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.[KAX_FareBasisRule] (
+        [id] INT IDENTITY(1,1) NOT NULL,
+        [airlineCode] NVARCHAR(20) NOT NULL,
+        [airlineName] NVARCHAR(150) NOT NULL,
+        [startPos] INT NOT NULL DEFAULT 1,
+        [length] INT NOT NULL DEFAULT 2,
+        [separator] NVARCHAR(10) NOT NULL DEFAULT '/',
+        [isActive] BIT NOT NULL DEFAULT 1,
+        [createdAt] DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+        [updatedAt] DATETIME2(3) NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT [PK_KAX_FareBasisRule] PRIMARY KEY CLUSTERED ([id] ASC),
+        CONSTRAINT [UQ_KAX_FareBasisRule_Code] UNIQUE NONCLUSTERED ([airlineCode] ASC)
+    );
+
+    INSERT INTO dbo.[KAX_FareBasisRule] ([airlineCode], [airlineName], [startPos], [length], [separator], [isActive])
+    VALUES ('001', 'American Airlines', 3, 2, '/', 1);
+END;
+GO
+
+-- 2. Función Escalar Universal de Cálculo de FarebasisReal
+IF OBJECT_ID('dbo.fnKAX_CalcularFarebasisReal', 'FN') IS NOT NULL
+    DROP FUNCTION dbo.fnKAX_CalcularFarebasisReal;
+GO
+
+CREATE FUNCTION dbo.fnKAX_CalcularFarebasisReal
+(
+    @fareBasisOriginal NVARCHAR(500),
+    @startPos INT,
+    @length INT,
+    @separator NVARCHAR(10) = '/'
+)
+RETURNS NVARCHAR(500)
+AS
+BEGIN
+    IF @fareBasisOriginal IS NULL OR TRIM(@fareBasisOriginal) = ''
+        RETURN @fareBasisOriginal;
+
+    SET @separator = COALESCE(NULLIF(TRIM(@separator), ''), '/');
+    SET @startPos = CASE WHEN @startPos < 1 THEN 1 ELSE @startPos END;
+    SET @length = CASE WHEN @length < 1 THEN 1 ELSE @length END;
+
+    DECLARE @resultado NVARCHAR(500) = '';
+    DECLARE @restante NVARCHAR(500) = @fareBasisOriginal;
+    DECLARE @pos INT;
+    DECLARE @segmento NVARCHAR(200);
+    DECLARE @transformado NVARCHAR(200);
+
+    WHILE CHARINDEX(@separator, @restante) > 0
+    BEGIN
+        SET @pos = CHARINDEX(@separator, @restante);
+        SET @segmento = SUBSTRING(@restante, 1, @pos - 1);
+        SET @restante = SUBSTRING(@restante, @pos + LEN(@separator), LEN(@restante));
+
+        SET @transformado = SUBSTRING(@segmento, @startPos, @length);
+        SET @resultado = @resultado + @transformado + @separator;
+    END;
+
+    SET @segmento = @restante;
+    SET @transformado = SUBSTRING(@segmento, @startPos, @length);
+    SET @resultado = @resultado + @transformado;
+
+    RETURN @resultado;
+END;
+GO
+
+-- 3. Función Auxiliar de Obtención Dinámica de FarebasisReal para Tiquetes
+IF OBJECT_ID('dbo.fnza_Get_TiqueteFarebasisReal', 'FN') IS NOT NULL
+    DROP FUNCTION dbo.fnza_Get_TiqueteFarebasisReal;
+GO
+
+CREATE FUNCTION dbo.fnza_Get_TiqueteFarebasisReal
+(
+    @id_tiquete INT,
+    @fareBasisOriginal VARCHAR(200),
+    @entVendedora VARCHAR(100)
+)
+RETURNS VARCHAR(200)
+AS
+BEGIN
+    IF @fareBasisOriginal IS NULL OR LTRIM(RTRIM(@fareBasisOriginal)) = ''
+        RETURN @fareBasisOriginal;
+
+    DECLARE @startPos INT = NULL, @length INT = NULL, @separator VARCHAR(10) = '/';
+
+    -- El código de la aerolínea son los primeros 3 dígitos de ENTVENDEDORA (o cd_EntVend o cd_tiquete)
+    DECLARE @prefix3 VARCHAR(10) = CASE 
+        WHEN @entVendedora IS NOT NULL AND LEN(LTRIM(RTRIM(@entVendedora))) >= 3 
+            THEN SUBSTRING(LTRIM(RTRIM(@entVendedora)), 1, 3)
+        ELSE NULL
+    END;
+
+    -- Buscar regla activa en KAX_FareBasisRule
+    SELECT TOP 1 
+        @startPos = r.startPos,
+        @length = r.length,
+        @separator = COALESCE(NULLIF(r.separator, ''), '/')
+    FROM dbo.KAX_FareBasisRule r
+    WHERE r.isActive = 1
+      AND (
+          (@prefix3 IS NOT NULL AND r.airlineCode = @prefix3)
+          OR (@entVendedora IS NOT NULL AND (@entVendedora LIKE '%' + r.airlineCode + '%' OR @entVendedora LIKE '%' + r.airlineName + '%'))
+          OR EXISTS (
+              SELECT 1 FROM dbo.Tiquetes_Itinerarios ti
+              WHERE ti.id_Tiquetes = @id_tiquete 
+                AND (ti.cd_aero_siglas = r.airlineCode OR ti.cd_aero_siglas = r.airlineName)
+          )
+      )
+    ORDER BY 
+        CASE 
+            WHEN @prefix3 IS NOT NULL AND r.airlineCode = @prefix3 THEN 1
+            WHEN @entVendedora IS NOT NULL AND @entVendedora LIKE '%' + r.airlineCode + '%' THEN 2
+            ELSE 3
+        END;
+
+    -- Si no existe regla configurada y activa, devolver el Fare Basis original
+    IF @startPos IS NULL
+        RETURN @fareBasisOriginal;
+
+    RETURN dbo.fnKAX_CalcularFarebasisReal(@fareBasisOriginal, @startPos, @length, @separator);
+END;
+GO
+
+-- 4. Función Auxiliar de Obtención Dinámica de Número de Reembolso para Tiquetes
+IF OBJECT_ID('dbo.fnza_Get_TiqueteReembolso', 'FN') IS NOT NULL
+    DROP FUNCTION dbo.fnza_Get_TiqueteReembolso;
+GO
+
+CREATE FUNCTION dbo.fnza_Get_TiqueteReembolso
+(
+    @cd_tiquete VARCHAR(50)
+)
+RETURNS VARCHAR(50)
+AS
+BEGIN
+    IF @cd_tiquete IS NULL OR LTRIM(RTRIM(@cd_tiquete)) = ''
+        RETURN NULL;
+
+    DECLARE @res VARCHAR(50);
+
+    SELECT TOP 1 
+        @res = RTRIM(LTRIM(r.cd_fuente)) + '-' + RTRIM(LTRIM(ISNULL(r.cd_serie, ''))) + RTRIM(LTRIM(ISNULL(r.cd_consecutivo, '')))
+    FROM dbo.Reembolsos r WITH (NOLOCK)
+    WHERE LTRIM(RTRIM(r.cd_tiquete)) = LTRIM(RTRIM(@cd_tiquete))
+    ORDER BY CASE WHEN r.id_usuario_anul IS NULL THEN 0 ELSE 1 END, r.id DESC;
+
+    RETURN @res;
+END;
+GO
+
 CREATE PROCEDURE [dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]
 		@Nacionalidad 				VARCHAR(25)		= NULL	
 		,@Remision 					VARCHAR(25)		= NULL	
@@ -58,6 +210,10 @@ CREATE PROCEDURE [dbo].[Zeus®spze_VentasDetalladasPorConceptos_FiltroRutas]
 		,@cd_PaisOrigen				VARCHAR(1000)	= NULL -- Filtro País Origen: ISO, Nombre o ID del país de la primera ciudad
 		,@cd_PaisDestino			VARCHAR(1000)	= NULL -- Filtro País Destino: ISO, Nombre o ID del país de la última ciudad
 		,@cd_PaisItinerario			VARCHAR(1000)	= NULL -- Filtro País Itinerario: ISO, Nombre o ID del país en cualquier ciudad de la ruta
+		,@NacionalidadReal			VARCHAR(25)		= NULL -- Filtro Nacionalidad Real: 'Todos', 'Nacional', 'Internacional'
+		,@cd_FarebasisReal			VARCHAR(8000)	= NULL -- Filtro FarebasisReal (calculado por regla de aerolínea)
+		,@MostrarSoloReembolsos		VARCHAR(2)		= NULL -- Filtro Reembolsos: 'SI' (solo con reembolso), 'NO' (solo sin reembolso), 'TODOS' o NULL
+		,@SoloReembolsos			VARCHAR(2)		= NULL -- Alias alternativo para @MostrarSoloReembolsos
 
 AS 
 BEGIN
@@ -157,10 +313,25 @@ BEGIN
 		SET @MostrarSoloRevisados = @Revisado;
 
 	SET @MostrarSoloRevisados = UPPER(LTRIM(RTRIM(NULLIF(@MostrarSoloRevisados, ''))));
+
+	IF @MostrarSoloReembolsos IS NULL AND @SoloReembolsos IS NOT NULL
+		SET @MostrarSoloReembolsos = @SoloReembolsos;
+
+	SET @MostrarSoloReembolsos = UPPER(LTRIM(RTRIM(NULLIF(@MostrarSoloReembolsos, ''))));
+	IF @MostrarSoloReembolsos IN ('1', 'TRUE', 'S') SET @MostrarSoloReembolsos = 'SI';
+	IF @MostrarSoloReembolsos IN ('0', 'FALSE', 'N') SET @MostrarSoloReembolsos = 'NO';
+	IF @MostrarSoloReembolsos IN ('TODOS', 'ALL') SET @MostrarSoloReembolsos = NULL;
 	SET @cd_FareBasis = LTRIM(RTRIM(NULLIF(@cd_FareBasis, '')));
+	SET @cd_FarebasisReal = LTRIM(RTRIM(NULLIF(@cd_FarebasisReal, '')));
+	IF @cd_FarebasisReal IN ('TODOS', 'ALL', '0') SET @cd_FarebasisReal = NULL;
 	SET @cd_PaisOrigen = LTRIM(RTRIM(NULLIF(@cd_PaisOrigen, '')));
 	SET @cd_PaisDestino = LTRIM(RTRIM(NULLIF(@cd_PaisDestino, '')));
 	SET @cd_PaisItinerario = LTRIM(RTRIM(NULLIF(@cd_PaisItinerario, '')));
+
+	SET @NacionalidadReal = UPPER(LTRIM(RTRIM(NULLIF(@NacionalidadReal, ''))));
+	IF @NacionalidadReal IN ('TODOS', 'ALL', '0') SET @NacionalidadReal = NULL;
+	IF @NacionalidadReal IN ('NACIONAL', '1') SET @NacionalidadReal = 'Nacional';
+	IF @NacionalidadReal IN ('INTERNACIONAL', '2') SET @NacionalidadReal = 'Internacional';
 
 	-- Tablas Temporales para filtros de País y Fare Basis (Indexadas para máxima velocidad)
 	IF @cd_FareBasis IS NOT NULL
@@ -169,6 +340,15 @@ BEGIN
 		INSERT INTO #TempFareBasis (cd_farebasis)
 		SELECT DISTINCT UPPER(LTRIM(RTRIM(codigo)))
 		FROM dbo.fnSplit(@cd_FareBasis, ',', 0, 1)
+		WHERE LTRIM(RTRIM(codigo)) <> '';
+	END
+
+	IF @cd_FarebasisReal IS NOT NULL
+	BEGIN
+		CREATE TABLE #TempFarebasisReal (cd_farebasis VARCHAR(100) PRIMARY KEY);
+		INSERT INTO #TempFarebasisReal (cd_farebasis)
+		SELECT DISTINCT UPPER(LTRIM(RTRIM(codigo)))
+		FROM dbo.fnSplit(@cd_FarebasisReal, ',', 0, 1)
 		WHERE LTRIM(RTRIM(codigo)) <> '';
 	END
 
@@ -216,6 +396,21 @@ BEGIN
 			  OR (ISNUMERIC(REPLACE(@cd_PaisItinerario, ',', '')) = 1 AND p.id IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit(@cd_PaisItinerario, ',', 0, 1) WHERE ISNUMERIC(codigo) = 1))
 		  );
 	END
+
+	-- Tablas Temporales indexadas para cálculo dinámico y filtro de Nacionalidad Real
+	CREATE TABLE #TempCiudadesExterior (cd_Iata VARCHAR(10) PRIMARY KEY);
+	INSERT INTO #TempCiudadesExterior (cd_Iata)
+	SELECT DISTINCT UPPER(LTRIM(RTRIM(c.cd_Iata)))
+	FROM dbo.Ciudades c WITH(NOLOCK)
+	INNER JOIN dbo.Paises p WITH(NOLOCK) ON p.id = c.id_paises
+	WHERE c.cd_Iata IS NOT NULL AND LTRIM(RTRIM(c.cd_Iata)) <> '' AND p.cd_codigo <> 'CO';
+
+	CREATE TABLE #TempCiudadesColombia (cd_Iata VARCHAR(10) PRIMARY KEY);
+	INSERT INTO #TempCiudadesColombia (cd_Iata)
+	SELECT DISTINCT UPPER(LTRIM(RTRIM(c.cd_Iata)))
+	FROM dbo.Ciudades c WITH(NOLOCK)
+	INNER JOIN dbo.Paises p WITH(NOLOCK) ON p.id = c.id_paises
+	WHERE c.cd_Iata IS NOT NULL AND LTRIM(RTRIM(c.cd_Iata)) <> '' AND p.cd_codigo = 'CO';
 
 	-- Procesamiento optimizado de Filtro Tipos de Documento
 	DECLARE @id_TiposDocumentoFiltro VARCHAR(8000) = ''
@@ -673,6 +868,108 @@ BEGIN
 		SET @FiltroRevisadosSQL = ' AND (F.cd_tktrevisado IS NULL OR LTRIM(RTRIM(F.cd_tktrevisado)) = '''')'
 	END
 
+	-- Filtro Nacionalidad Real (Evaluación dinámica basada en ciudades de la ruta vs tablas maestras)
+	DECLARE @FiltroNacionalidadRealOuterSQL VARCHAR(MAX) = ''
+	IF @NacionalidadReal = 'Nacional'
+	BEGIN
+		SET @FiltroNacionalidadRealOuterSQL = '
+	WHERE (
+		CASE 
+			WHEN Facturacion.Servicio IS NOT NULL AND CHARINDEX(''/'', REPLACE(Facturacion.Servicio, ''-'', ''/'')) > 0 AND EXISTS (
+				SELECT 1 FROM #TempCiudadesExterior ext 
+				WHERE ''/'' + REPLACE(REPLACE(UPPER(LTRIM(RTRIM(Facturacion.Servicio))), '' '', ''''), ''-'', ''/'') + ''/'' LIKE ''%/'' + ext.cd_Iata + ''/%''
+			) THEN ''Internacional''
+			WHEN Facturacion.Servicio IS NOT NULL AND CHARINDEX(''/'', REPLACE(Facturacion.Servicio, ''-'', ''/'')) > 0 
+			  AND EXISTS (
+				  SELECT 1 
+				  FROM dbo.fnSplit(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(Facturacion.Servicio))), '' '', ''''), ''-'', ''/''), ''/'', 0, 1) s
+				  WHERE LTRIM(RTRIM(s.codigo)) <> ''''
+			  )
+			  AND NOT EXISTS (
+				  SELECT 1 
+				  FROM dbo.fnSplit(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(Facturacion.Servicio))), '' '', ''''), ''-'', ''/''), ''/'', 0, 1) s
+				  WHERE LTRIM(RTRIM(s.codigo)) <> '''' 
+					AND s.codigo NOT IN (SELECT cd_Iata FROM #TempCiudadesColombia)
+			  ) THEN ''Nacional''
+			WHEN Facturacion.NACIONALIDAD = 1 THEN ''Nacional''
+			ELSE ''Internacional''
+		END = ''Nacional''
+	)'
+	END
+	ELSE IF @NacionalidadReal = 'Internacional'
+	BEGIN
+		SET @FiltroNacionalidadRealOuterSQL = '
+	WHERE (
+		CASE 
+			WHEN Facturacion.Servicio IS NOT NULL AND CHARINDEX(''/'', REPLACE(Facturacion.Servicio, ''-'', ''/'')) > 0 AND EXISTS (
+				SELECT 1 FROM #TempCiudadesExterior ext 
+				WHERE ''/'' + REPLACE(REPLACE(UPPER(LTRIM(RTRIM(Facturacion.Servicio))), '' '', ''''), ''-'', ''/'') + ''/'' LIKE ''%/'' + ext.cd_Iata + ''/%''
+			) THEN ''Internacional''
+			WHEN Facturacion.Servicio IS NOT NULL AND CHARINDEX(''/'', REPLACE(Facturacion.Servicio, ''-'', ''/'')) > 0 
+			  AND EXISTS (
+				  SELECT 1 
+				  FROM dbo.fnSplit(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(Facturacion.Servicio))), '' '', ''''), ''-'', ''/''), ''/'', 0, 1) s
+				  WHERE LTRIM(RTRIM(s.codigo)) <> ''''
+			  )
+			  AND NOT EXISTS (
+				  SELECT 1 
+				  FROM dbo.fnSplit(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(Facturacion.Servicio))), '' '', ''''), ''-'', ''/''), ''/'', 0, 1) s
+				  WHERE LTRIM(RTRIM(s.codigo)) <> '''' 
+					AND s.codigo NOT IN (SELECT cd_Iata FROM #TempCiudadesColombia)
+			  ) THEN ''Nacional''
+			WHEN Facturacion.NACIONALIDAD = 1 THEN ''Nacional''
+			ELSE ''Internacional''
+		END = ''Internacional''
+	)'
+	END
+
+	-- Filtro Farebasis Real (Búsqueda sobre columna calculada FarebasisReal)
+	DECLARE @FiltroFarebasisRealOuterSQL VARCHAR(MAX) = ''
+	IF @cd_FarebasisReal IS NOT NULL
+	BEGIN
+		SET @FiltroFarebasisRealOuterSQL = '(
+			Facturacion.FarebasisReal IS NOT NULL AND EXISTS (
+				SELECT 1 FROM #TempFarebasisReal fbrFiltro
+				WHERE UPPER(LTRIM(RTRIM(Facturacion.FarebasisReal))) LIKE ''%'' + fbrFiltro.cd_farebasis + ''%''
+			)
+		)'
+	END
+
+	-- Filtro Reembolsos (Mostrar solo tiquetes con reembolso o solo sin reembolso)
+	DECLARE @FiltroReembolsoInnerSQL VARCHAR(MAX) = ''
+	DECLARE @FiltroReembolsoOuterSQL VARCHAR(MAX) = ''
+	IF @MostrarSoloReembolsos = 'SI'
+	BEGIN
+		SET @FiltroReembolsoInnerSQL = ' AND (tkt.id IS NOT NULL AND EXISTS (SELECT 1 FROM dbo.Reembolsos rb WITH(NOLOCK) WHERE LTRIM(RTRIM(rb.cd_tiquete)) = LTRIM(RTRIM(tkt.cd_tiquete))))'
+		SET @FiltroReembolsoOuterSQL = '(Facturacion.NumeroReembolso IS NOT NULL AND LTRIM(RTRIM(Facturacion.NumeroReembolso)) <> '''')'
+	END
+	ELSE IF @MostrarSoloReembolsos = 'NO'
+	BEGIN
+		SET @FiltroReembolsoInnerSQL = ' AND (tkt.id IS NULL OR NOT EXISTS (SELECT 1 FROM dbo.Reembolsos rb WITH(NOLOCK) WHERE LTRIM(RTRIM(rb.cd_tiquete)) = LTRIM(RTRIM(tkt.cd_tiquete))))'
+		SET @FiltroReembolsoOuterSQL = '(Facturacion.NumeroReembolso IS NULL OR LTRIM(RTRIM(Facturacion.NumeroReembolso)) = '''')'
+	END
+
+	DECLARE @FiltroFinalOuterSQL VARCHAR(MAX) = ''
+	IF @FiltroNacionalidadRealOuterSQL <> ''
+	BEGIN
+		SET @FiltroFinalOuterSQL = @FiltroNacionalidadRealOuterSQL;
+		IF @FiltroFarebasisRealOuterSQL <> ''
+			SET @FiltroFinalOuterSQL = @FiltroFinalOuterSQL + ' AND ' + @FiltroFarebasisRealOuterSQL;
+		IF @FiltroReembolsoOuterSQL <> ''
+			SET @FiltroFinalOuterSQL = @FiltroFinalOuterSQL + ' AND ' + @FiltroReembolsoOuterSQL;
+	END
+	ELSE
+	BEGIN
+		DECLARE @OuterConds VARCHAR(MAX) = ''
+		IF @FiltroFarebasisRealOuterSQL <> ''
+			SET @OuterConds = @OuterConds + CASE WHEN @OuterConds <> '' THEN ' AND ' ELSE '' END + @FiltroFarebasisRealOuterSQL;
+		IF @FiltroReembolsoOuterSQL <> ''
+			SET @OuterConds = @OuterConds + CASE WHEN @OuterConds <> '' THEN ' AND ' ELSE '' END + @FiltroReembolsoOuterSQL;
+
+		IF @OuterConds <> ''
+			SET @FiltroFinalOuterSQL = ' WHERE ' + @OuterConds;
+	END
+
 	--------------------------------------------------------------------------------------------------
 	-- Construcción de Consultas por Subbloques (Modular y Condicional)
 	--------------------------------------------------------------------------------------------------
@@ -869,6 +1166,8 @@ BEGIN
 			 ,DivPol_cliente = DP.Desdivpolitica
 			 ,Especialista = ES.ds_nombre
 			 ,FAREBASIS = CASE WHEN tkt.id IS NOT NULL THEN rtrim(convert(VARCHAR(20),dbo.fnza_Get_TiqueteFareBasis(tkt.id))) ELSE NULL END
+			 ,FarebasisReal = CASE WHEN tkt.id IS NOT NULL THEN dbo.fnza_Get_TiqueteFarebasisReal(tkt.id, rtrim(convert(VARCHAR(100),dbo.fnza_Get_TiqueteFareBasis(tkt.id))), F.cd_EntVend) ELSE NULL END
+			 ,NumeroReembolso = CASE WHEN tkt.id IS NOT NULL THEN dbo.fnza_Get_TiqueteReembolso(tkt.cd_tiquete) ELSE NULL END
 			 FROM dbo.fnza_FacturacionMejorada('
 			+convert(varchar,@in_nacionalidad)+','
 			+convert(varchar,@Descuento)+','
@@ -920,7 +1219,7 @@ BEGIN
 			'+CASE WHEN ISNULL(@ds_feeocultos,'')<>'' THEN 'AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('''+@ds_feeocultos+''','','',0,1)) OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'AND (C.cd_codigo NOT IN(''CAN'',''CAI'',''CEM'') OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN ISNULL(@id_TiposDocumentoFiltro,'')<>'' THEN 'AND (tkt.id_TiposDocumento IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit('''+@id_TiposDocumentoFiltro+''','','',0,1)))' ELSE '' END+'
-			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL +' '+ @FiltroFareBasisSQL +' '+ @FiltroRevisadosSQL
+			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL +' '+ @FiltroFareBasisSQL +' '+ @FiltroRevisadosSQL +' '+ @FiltroReembolsoInnerSQL
 	
 	-- Subbloque Remisiones (Solo se compila y ejecuta si se solicitaron remisiones)
 	DECLARE @QueryRemisiones VARCHAR(MAX) = ''
@@ -1119,6 +1418,8 @@ BEGIN
 			 ,DivPol_cliente = DP.Desdivpolitica
 			 ,Especialista = ES.ds_nombre
 			 ,FAREBASIS = CASE WHEN tkt.id IS NOT NULL THEN convert(varchar(20),dbo.fnza_Get_TiqueteFareBasis(tkt.id)) ELSE NULL END
+			 ,FarebasisReal = CASE WHEN tkt.id IS NOT NULL THEN dbo.fnza_Get_TiqueteFarebasisReal(tkt.id, convert(VARCHAR(100),dbo.fnza_Get_TiqueteFareBasis(tkt.id)), F.cd_EntVend) ELSE NULL END
+			 ,NumeroReembolso = CASE WHEN tkt.id IS NOT NULL THEN dbo.fnza_Get_TiqueteReembolso(tkt.cd_tiquete) ELSE NULL END
 		FROM dbo.fnza_RemisionMejorada('
 			+convert(varchar,@in_nacionalidad)+','
 			+convert(varchar,@Descuento)+','
@@ -1171,7 +1472,7 @@ BEGIN
 			'+CASE WHEN ISNULL(@ds_feeocultos,'')<>'' THEN 'AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('''+@ds_feeocultos+''','','',0,1)) OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'AND (C.cd_codigo NOT IN(''CAN'',''CAI'',''CEM'') OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN ISNULL(@id_TiposDocumentoFiltro,'')<>'' THEN 'AND (tkt.id_TiposDocumento IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit('''+@id_TiposDocumentoFiltro+''','','',0,1)))' ELSE '' END+'
-			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL +' '+ @FiltroFareBasisSQL +' '+ @FiltroRevisadosSQL
+			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL +' '+ @FiltroFareBasisSQL +' '+ @FiltroRevisadosSQL +' '+ @FiltroReembolsoInnerSQL
 	END
 
 	-- Subbloque Cotizaciones (Solo se compila y ejecuta si se solicitaron etapas de cotización)
@@ -1304,6 +1605,8 @@ BEGIN
 			  ,DivPol_cliente = DP.Desdivpolitica
 			  ,Especialista = ES.ds_nombre
 			  ,FAREBASIS = ''1''
+			  ,FarebasisReal = ''1''
+			  ,NumeroReembolso = ''''
 			FROM dbo.Cotizacion CT 
 				 INNER JOIN dbo.CotizacionServicios CS WITH(NOLOCK) ON CS.id_Cotizacion= CT.id
 				 INNER JOIN dbo.Etapas E On e.id=ct.id_etapa
@@ -1347,7 +1650,7 @@ BEGIN
 				   '+CASE WHEN ISNULL(@ds_conceptosunificados,'')<>'' THEN 'AND (CF.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('''+@ds_conceptosunificados+''','','',0,1)))' ELSE '' END+'
 				   '+CASE WHEN ISNULL(@ds_feeocultos,'')<>'' THEN 'AND (cf.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('''+@ds_feeocultos+''','','',0,1)) OR CS.cd_tiquete IS NULL)' ELSE '' END+'
 				   '+CASE WHEN ISNULL(@id_TiposDocumentoFiltro,'')<>'' THEN 'AND (tkt.id_TiposDocumento IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit('''+@id_TiposDocumentoFiltro+''','','',0,1)))' ELSE '' END+'
-			' + @FiltroFechasVueloCotSQL + CASE WHEN @MostrarSoloRevisados = 'SI' OR @cd_FareBasis IS NOT NULL THEN ' AND 1 = 0' ELSE '' END
+			' + @FiltroFechasVueloCotSQL + CASE WHEN @MostrarSoloRevisados = 'SI' OR @cd_FareBasis IS NOT NULL OR @cd_FarebasisReal IS NOT NULL OR @MostrarSoloReembolsos = 'SI' THEN ' AND 1 = 0' ELSE '' END
 	END
 
 	-- Subbloque Notas de Crédito Parcial (Solo se compila y ejecuta si se solicitaron anulaciones)
@@ -1544,6 +1847,8 @@ BEGIN
 			  ,DivPol_cliente = DP.Desdivpolitica
 			  ,Especialista = ES.ds_nombre
 			  ,FAREBASIS = CASE WHEN tkt.id IS NOT NULL THEN convert(varchar,dbo.fnza_Get_TiqueteFareBasis(tkt.id)) ELSE NULL END
+			  ,FarebasisReal = CASE WHEN tkt.id IS NOT NULL THEN dbo.fnza_Get_TiqueteFarebasisReal(tkt.id, convert(VARCHAR(100),dbo.fnza_Get_TiqueteFareBasis(tkt.id)), F.cd_EntVend) ELSE NULL END
+			  ,NumeroReembolso = CASE WHEN tkt.id IS NOT NULL THEN dbo.fnza_Get_TiqueteReembolso(tkt.cd_tiquete) ELSE NULL END
 		FROM dbo.fnza_NotaCreditoParcial('
 			+convert(varchar,@in_nacionalidad)+','
 			+convert(varchar,@Descuento)+','
@@ -1594,7 +1899,7 @@ BEGIN
 			'+CASE WHEN ISNULL(@ds_feeocultos,'')<>'' THEN 'AND (C.cd_codigo NOT IN (SELECT codigo FROM dbo.fnSplit('''+@ds_feeocultos+''','','',0,1)) OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN @in_MostrarTAOCEMColumnas=1 THEN 'AND (C.cd_codigo NOT IN(''CAN'',''CAI'',''CEM'') OR tkt.id IS NULL)' ELSE '' END+'
 			'+CASE WHEN ISNULL(@id_TiposDocumentoFiltro,'')<>'' THEN 'AND (tkt.id_TiposDocumento IN (SELECT CONVERT(INT, codigo) FROM dbo.fnSplit('''+@id_TiposDocumentoFiltro+''','','',0,1)))' ELSE '' END+'
-			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL +' '+ @FiltroFareBasisSQL +' '+ @FiltroRevisadosSQL
+			'+ @FiltroRutaSQL +' '+ @FiltroFechasVueloSQL +' '+ @FiltroFareBasisSQL +' '+ @FiltroRevisadosSQL +' '+ @FiltroReembolsoInnerSQL
 	END
 
 	--------------------------------------------------------------------------------------------------
@@ -1653,6 +1958,28 @@ BEGIN
 		,Penalidad
 		,FechaExpedicion 
 		,Nacionalidad = CASE WHEN NACIONALIDAD = 1 THEN ''Nacional'' ELSE ''Internacional'' END
+		,[Nacionalidad Real] = CASE 
+			WHEN Facturacion.Servicio IS NOT NULL AND CHARINDEX(''/'', REPLACE(Facturacion.Servicio, ''-'', ''/'')) > 0 AND EXISTS (
+				SELECT 1 
+				FROM dbo.fnSplit(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(Facturacion.Servicio))), '' '', ''''), ''-'', ''/''), ''/'', 0, 1) s
+				JOIN #TempCiudadesExterior ext ON ext.cd_Iata = s.codigo
+				WHERE LTRIM(RTRIM(s.codigo)) <> ''''
+			) THEN ''Internacional''
+			WHEN Facturacion.Servicio IS NOT NULL AND CHARINDEX(''/'', REPLACE(Facturacion.Servicio, ''-'', ''/'')) > 0 
+			  AND EXISTS (
+				  SELECT 1 
+				  FROM dbo.fnSplit(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(Facturacion.Servicio))), '' '', ''''), ''-'', ''/''), ''/'', 0, 1) s
+				  WHERE LTRIM(RTRIM(s.codigo)) <> ''''
+			  )
+			  AND NOT EXISTS (
+				  SELECT 1 
+				  FROM dbo.fnSplit(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(Facturacion.Servicio))), '' '', ''''), ''-'', ''/''), ''/'', 0, 1) s
+				  WHERE LTRIM(RTRIM(s.codigo)) <> '''' 
+					AND s.codigo NOT IN (SELECT cd_Iata FROM #TempCiudadesColombia)
+			  ) THEN ''Nacional''
+			WHEN Facturacion.NACIONALIDAD = 1 THEN ''Nacional''
+			ELSE ''Internacional''
+		END
 		,Tiqueteador
 		,EntVendedora
 		,EntDistribuidora
@@ -1747,12 +2074,15 @@ BEGIN
 		,DivPol_cliente
 		,Especialista
 		,FAREBASIS
+		,FarebasisReal
+		,NumeroReembolso
 	FROM (
 		' + @QueryFacturas + '
 		' + @QueryRemisiones + '
 		' + @QueryCotizaciones + '
 		' + @QueryNotasCredito + '
 	) AS Facturacion
+	' + @FiltroFinalOuterSQL + '
 	ORDER BY  
 		OrdenAerolinea ASC
 		,Aerolinea ASC
@@ -1765,8 +2095,11 @@ BEGIN
 	Exec (@SelectData)
 
 	IF OBJECT_ID('tempdb..#TempFareBasis') IS NOT NULL DROP TABLE #TempFareBasis;
+	IF OBJECT_ID('tempdb..#TempFarebasisReal') IS NOT NULL DROP TABLE #TempFarebasisReal;
 	IF OBJECT_ID('tempdb..#TempIataOrigen') IS NOT NULL DROP TABLE #TempIataOrigen;
 	IF OBJECT_ID('tempdb..#TempIataDestino') IS NOT NULL DROP TABLE #TempIataDestino;
 	IF OBJECT_ID('tempdb..#TempIataItinerario') IS NOT NULL DROP TABLE #TempIataItinerario;
+	IF OBJECT_ID('tempdb..#TempCiudadesExterior') IS NOT NULL DROP TABLE #TempCiudadesExterior;
+	IF OBJECT_ID('tempdb..#TempCiudadesColombia') IS NOT NULL DROP TABLE #TempCiudadesColombia;
 	
 END

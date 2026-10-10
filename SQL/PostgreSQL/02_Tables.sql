@@ -161,3 +161,19 @@ CREATE TABLE IF NOT EXISTS public."KAX_License" (
     "activatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- 11. TABLA: KAX_FareBasisRule (Maestro de Configuración de Extracción de Fare Basis por Aerolínea)
+CREATE TABLE IF NOT EXISTS public."KAX_FareBasisRule" (
+    "id" SERIAL PRIMARY KEY,
+    "airlineCode" VARCHAR(20) NOT NULL UNIQUE,
+    "airlineName" VARCHAR(150) NOT NULL,
+    "startPos" INT NOT NULL DEFAULT 1,
+    "length" INT NOT NULL DEFAULT 2,
+    "separator" VARCHAR(10) NOT NULL DEFAULT '/',
+    "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS "IX_KAX_FareBasisRule_AirlineCode" ON public."KAX_FareBasisRule"("airlineCode");
+CREATE INDEX IF NOT EXISTS "IX_KAX_FareBasisRule_IsActive" ON public."KAX_FareBasisRule"("isActive");
+

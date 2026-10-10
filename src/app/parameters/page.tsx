@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
     Sliders,
     Save,
@@ -8,8 +9,11 @@ import {
     Database,
     Shield,
     FileSpreadsheet,
-    Settings2
+    Settings2,
+    Plane,
+    ArrowRight
 } from 'lucide-react';
+import { parseJsonResponse } from '@/lib/safe-json';
 
 export default function UserParametersPage() {
     const [params, setParams] = useState({
@@ -24,9 +28,9 @@ export default function UserParametersPage() {
 
     useEffect(() => {
         fetch('/api/parameters/user?userId=1')
-            .then(res => res.json())
+            .then(res => parseJsonResponse<any>(res, { parameters: null }))
             .then(data => {
-                if (data.parameters) setParams(data.parameters);
+                if (data && data.parameters) setParams(data.parameters);
             })
             .catch(console.error);
     }, []);
@@ -74,6 +78,30 @@ export default function UserParametersPage() {
                     <span>Parámetros guardados y aplicados correctamente.</span>
                 </div>
             )}
+
+            {/* Acceso a Maestro de Fare Basis */}
+            <div className="bg-gradient-to-r from-slate-900 to-slate-900/80 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all group shadow-sm">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-cyan-400 group-hover:scale-105 transition-transform shrink-0">
+                        <Plane className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h3 className="font-extrabold text-sm text-white group-hover:text-cyan-400 transition-colors">
+                            Maestro de Reglas de Fare Basis por Aerolínea
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                            Configura las reglas de extracción segmentada para calcular la columna <strong className="text-cyan-400">FarebasisReal</strong>.
+                        </p>
+                    </div>
+                </div>
+                <Link
+                    href="/parameters/farebasis"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-cyan-500 text-slate-200 hover:text-slate-950 rounded-xl font-bold text-xs transition-all shrink-0 self-start sm:self-auto"
+                >
+                    <span>Configurar Reglas</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+            </div>
 
             <form onSubmit={handleSave} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-5 text-xs">
                 <div className="space-y-4">

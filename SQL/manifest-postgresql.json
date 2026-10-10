@@ -1,9 +1,9 @@
 {
   "engine": "POSTGRESQL",
   "version": "1.0.0",
-  "generatedAt": "2026-10-06T18:20:25.797Z",
-  "expectedTablesCount": 10,
-  "expectedProceduresCount": 11,
+  "generatedAt": "2026-10-09T18:04:04.037Z",
+  "expectedTablesCount": 11,
+  "expectedProceduresCount": 14,
   "files": [
     {
       "file": "01_CreateDatabase.sql",
@@ -12,18 +12,18 @@
     },
     {
       "file": "02_Tables.sql",
-      "sha256": "cbdf40c0786838da10a9a279d76e87ed3def6e8421f1a8065fb9c8e9680798ce",
-      "bytes": 7483
+      "sha256": "ba581126bf82e0481bd0f14993652c7f02166e62d6ed8e1f3f57951643b8f58d",
+      "bytes": 8281
     },
     {
       "file": "03_InitialData.sql",
-      "sha256": "7f30ca8e40a3e3b39442ee2848882c1e95cbcd6c09009a6ce25b727dc154150e",
-      "bytes": 2934
+      "sha256": "ddd131141b1f5e0e44a607adea55dd661a1232f79bfc97ee34fdfab7476e1951",
+      "bytes": 3275
     },
     {
       "file": "04_StoredProcedures.sql",
-      "sha256": "c67da6ea6ee8d608695a9646a8b9f9118fc8d49833253b09543f332ef4f6fc19",
-      "bytes": 10059
+      "sha256": "c2fed21feaecdc2b943944fb31b8d1a238ded8574739d827197e306438fca29f",
+      "bytes": 14231
     }
   ],
   "tables": [
@@ -36,7 +36,8 @@
     "KAX_ExecutionRun",
     "KAX_SystemAuditLog",
     "KAX_Dashboard",
-    "KAX_License"
+    "KAX_License",
+    "KAX_FareBasisRule"
   ],
   "procedures": [
     "spKAX_RegistrarInicioEjecucion",
@@ -49,7 +50,10 @@
     "spKAX_LicenseAplicar",
     "spKAX_UserListar",
     "spKAX_UserGuardar",
-    "spKAX_RoleListar"
+    "spKAX_RoleListar",
+    "spKAX_FareBasisRuleListar",
+    "spKAX_FareBasisRuleGuardar",
+    "spKAX_FareBasisRuleEliminar"
   ],
-  "masterSha256": "87f7e04e4e60c14221df86a681db8647508b0698a0918eb6c211aca3051092c7"
+  "masterSha256": "1e6b8641562c837fad8a137c23081a622ce2ec27f33e2f43f522ff31130acb86"
 }

@@ -371,3 +371,149 @@ BEGIN
 END;
 GO
 
+-- 12. FUNCIÓN ESCALAR: fnKAX_CalcularFarebasisReal
+-- Aplica la regla de extracción de caracteres individualmente a cada segmento separado por el delimitador (por defecto '/')
+CREATE OR ALTER FUNCTION dbo.fnKAX_CalcularFarebasisReal
+(
+    @fareBasisOriginal VARCHAR(500),
+    @startPos INT,
+    @length INT,
+    @separator VARCHAR(10) = '/'
+)
+RETURNS VARCHAR(500)
+AS
+BEGIN
+    IF @fareBasisOriginal IS NULL OR LTRIM(RTRIM(@fareBasisOriginal)) = ''
+        RETURN @fareBasisOriginal;
+
+    IF @startPos IS NULL OR @startPos < 1 OR @length IS NULL OR @length <= 0
+        RETURN @fareBasisOriginal;
+
+    IF @separator IS NULL OR @separator = ''
+        SET @separator = '/';
+
+    DECLARE @resultado VARCHAR(500) = '';
+    DECLARE @pos INT;
+    DECLARE @segmento VARCHAR(200);
+    DECLARE @transformado VARCHAR(200);
+    DECLARE @restante VARCHAR(500) = @fareBasisOriginal;
+
+    WHILE CHARINDEX(@separator, @restante) > 0
+    BEGIN
+        SET @pos = CHARINDEX(@separator, @restante);
+        SET @segmento = SUBSTRING(@restante, 1, @pos - 1);
+        SET @restante = SUBSTRING(@restante, @pos + LEN(@separator), LEN(@restante));
+
+        SET @transformado = SUBSTRING(@segmento, @startPos, @length);
+        SET @resultado = @resultado + @transformado + @separator;
+    END;
+
+    -- Último segmento (o único si no contenía separador)
+    SET @segmento = @restante;
+    SET @transformado = SUBSTRING(@segmento, @startPos, @length);
+    SET @resultado = @resultado + @transformado;
+
+    RETURN @resultado;
+END;
+GO
+
+-- 13. SP: spKAX_FareBasisRuleListar
+CREATE OR ALTER PROCEDURE dbo.spKAX_FareBasisRuleListar
+    @isActive BIT = NULL,
+    @search NVARCHAR(100) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        [id],
+        [airlineCode],
+        [airlineName],
+        [startPos],
+        [length],
+        [separator],
+        [isActive],
+        [createdAt],
+        [updatedAt]
+    FROM dbo.[KAX_FareBasisRule]
+    WHERE (@isActive IS NULL OR [isActive] = @isActive)
+      AND (@search IS NULL OR [airlineCode] LIKE '%' + @search + '%' OR [airlineName] LIKE '%' + @search + '%')
+    ORDER BY [airlineCode] ASC;
+END;
+GO
+
+-- 14. SP: spKAX_FareBasisRuleGuardar
+CREATE OR ALTER PROCEDURE dbo.spKAX_FareBasisRuleGuardar
+    @id INT = NULL,
+    @airlineCode NVARCHAR(20),
+    @airlineName NVARCHAR(150),
+    @startPos INT = 1,
+    @length INT = 2,
+    @separator NVARCHAR(10) = '/',
+    @isActive BIT = 1,
+    @savedId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    SET @separator = COALESCE(NULLIF(TRIM(@separator), ''), '/');
+    SET @startPos = CASE WHEN @startPos < 1 THEN 1 ELSE @startPos END;
+    SET @length = CASE WHEN @length < 1 THEN 1 ELSE @length END;
+
+    IF @id IS NOT NULL AND EXISTS (SELECT 1 FROM dbo.[KAX_FareBasisRule] WHERE [id] = @id)
+    BEGIN
+        UPDATE dbo.[KAX_FareBasisRule]
+        SET [airlineCode] = TRIM(@airlineCode),
+            [airlineName] = TRIM(@airlineName),
+            [startPos] = @startPos,
+            [length] = @length,
+            [separator] = @separator,
+            [isActive] = @isActive,
+            [updatedAt] = SYSUTCDATETIME()
+        WHERE [id] = @id;
+
+        SET @savedId = @id;
+    END
+    ELSE
+    BEGIN
+        -- Upsert por airlineCode si ya existiera
+        IF EXISTS (SELECT 1 FROM dbo.[KAX_FareBasisRule] WHERE [airlineCode] = TRIM(@airlineCode))
+        BEGIN
+            UPDATE dbo.[KAX_FareBasisRule]
+            SET [airlineName] = TRIM(@airlineName),
+                [startPos] = @startPos,
+                [length] = @length,
+                [separator] = @separator,
+                [isActive] = @isActive,
+                [updatedAt] = SYSUTCDATETIME()
+            WHERE [airlineCode] = TRIM(@airlineCode);
+
+            SELECT @savedId = [id] FROM dbo.[KAX_FareBasisRule] WHERE [airlineCode] = TRIM(@airlineCode);
+        END
+        ELSE
+        BEGIN
+            INSERT INTO dbo.[KAX_FareBasisRule] (
+                [airlineCode], [airlineName], [startPos], [length], [separator], [isActive], [createdAt], [updatedAt]
+            )
+            VALUES (
+                TRIM(@airlineCode), TRIM(@airlineName), @startPos, @length, @separator, @isActive, SYSUTCDATETIME(), SYSUTCDATETIME()
+            );
+
+            SET @savedId = SCOPE_IDENTITY();
+        END;
+    END;
+END;
+GO
+
+-- 15. SP: spKAX_FareBasisRuleEliminar
+CREATE OR ALTER PROCEDURE dbo.spKAX_FareBasisRuleEliminar
+    @id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DELETE FROM dbo.[KAX_FareBasisRule] WHERE [id] = @id;
+END;
+GO
+
+

@@ -29,7 +29,8 @@ const EXPECTED_TABLES = [
     'KAX_ExecutionRun',
     'KAX_SystemAuditLog',
     'KAX_Dashboard',
-    'KAX_License'
+    'KAX_License',
+    'KAX_FareBasisRule'
 ];
 
 const EXPECTED_PROCEDURES = [
@@ -43,8 +44,12 @@ const EXPECTED_PROCEDURES = [
     'spKAX_LicenseAplicar',
     'spKAX_UserListar',
     'spKAX_UserGuardar',
-    'spKAX_RoleListar'
+    'spKAX_RoleListar',
+    'spKAX_FareBasisRuleListar',
+    'spKAX_FareBasisRuleGuardar',
+    'spKAX_FareBasisRuleEliminar'
 ];
+
 
 
 function calculateSha256(content) {

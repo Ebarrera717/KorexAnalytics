@@ -24,6 +24,7 @@ import {
     Clock,
     Lock
 } from 'lucide-react';
+import { parseJsonResponse } from '@/lib/safe-json';
 
 interface SQLProfile {
     id: number;
@@ -103,7 +104,7 @@ export default function SQLServerProfilesPage() {
     const loadProfiles = () => {
         setLoading(true);
         fetch('/api/sqlserver/profiles')
-            .then(res => res.json())
+            .then(res => parseJsonResponse<SQLProfile[]>(res, []))
             .then(data => {
                 if (Array.isArray(data)) {
                     setProfiles(data);
@@ -129,8 +130,10 @@ export default function SQLServerProfilesPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: profile.id })
             });
-            const data: TestResult = await res.json();
-            setCardResults(prev => ({ ...prev, [profile.id]: data }));
+            const data: TestResult | null = await parseJsonResponse(res, { success: false, message: 'Respuesta inválida' });
+            if (data) {
+                setCardResults(prev => ({ ...prev, [profile.id]: data }));
+            }
         } catch (err: any) {
             setCardResults(prev => ({
                 ...prev,
@@ -271,8 +274,8 @@ export default function SQLServerProfilesPage() {
                 setShowModal(false);
                 loadProfiles();
             } else {
-                const err = await res.json();
-                alert(err.message || 'Error al guardar el perfil.');
+                const err = await parseJsonResponse(res, { message: 'Error al guardar el perfil.' });
+                alert(err?.message || 'Error al guardar el perfil.');
             }
         } catch (err: any) {
             alert('Error de conexión al guardar: ' + err.message);

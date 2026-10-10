@@ -130,6 +130,39 @@ export async function GET(req: NextRequest) {
                 query = `SELECT DISTINCT TOP 200 cd_farebasis AS code, cd_farebasis AS name FROM dbo.Tiquetes_Itinerarios ${searchClause} ORDER BY cd_farebasis`;
                 break;
 
+            case 'farebasisreal':
+                searchClause = search ? 'WHERE ti.cd_farebasis LIKE @search' : 'WHERE ti.cd_farebasis IS NOT NULL AND LTRIM(RTRIM(ti.cd_farebasis)) <> \'\'';
+                query = `
+                    IF OBJECT_ID('dbo.fnza_Get_TiqueteFarebasisReal', 'FN') IS NOT NULL
+                    BEGIN
+                        SELECT DISTINCT TOP 200 
+                            dbo.fnza_Get_TiqueteFarebasisReal(ti.id_Tiquetes, ti.cd_farebasis, t.cd_tiquete) AS code,
+                            dbo.fnza_Get_TiqueteFarebasisReal(ti.id_Tiquetes, ti.cd_farebasis, t.cd_tiquete) AS name
+                        FROM dbo.Tiquetes_Itinerarios ti WITH(NOLOCK)
+                        LEFT JOIN dbo.tiquetes t WITH(NOLOCK) ON t.id = ti.id_Tiquetes
+                        ${searchClause}
+                        ORDER BY code;
+                    END
+                    ELSE
+                    BEGIN
+                        SELECT DISTINCT TOP 200 cd_farebasis AS code, cd_farebasis AS name FROM dbo.Tiquetes_Itinerarios ti ${searchClause} ORDER BY cd_farebasis;
+                    END
+                `;
+                break;
+
+            case 'aerolineas':
+                searchClause = search ? 'AND (e.cd_siglas LIKE @search OR e.cd_codigo LIKE @search OR e.ds_Alias LIKE @search OR p.RAZONCIAL LIKE @search)' : '';
+                query = `
+                    SELECT DISTINCT TOP 200 
+                        COALESCE(NULLIF(LTRIM(RTRIM(e.cd_siglas)), ''), LTRIM(RTRIM(e.cd_codigo))) AS code,
+                        ISNULL(NULLIF(LTRIM(RTRIM(e.ds_Alias)), ''), ISNULL(p.RAZONCIAL, e.cd_codigo)) AS name
+                    FROM dbo.Entidades e WITH(NOLOCK)
+                    LEFT JOIN dbo.PROVEEDORES p WITH(NOLOCK) ON p.IDPROVE = e.cd_proveedor
+                    WHERE (e.bl_inactivo = 0 OR e.bl_inactivo IS NULL) ${searchClause}
+                    ORDER BY code
+                `;
+                break;
+
             default:
                 return NextResponse.json({ message: `Tipo de lookup desconocido: ${type}` }, { status: 400 });
         }

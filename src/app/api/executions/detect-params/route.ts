@@ -92,7 +92,10 @@ export async function GET(req: NextRequest) {
             cd_paisorigen: 'paises',
             cd_paisdestino: 'paises',
             cd_paisitinerario: 'paises',
-            cd_farebasis: 'farebasis'
+            cd_farebasis: 'farebasis',
+            cd_farebasisreal: 'farebasisreal',
+            farebasisreal: 'farebasisreal',
+            cd_aerolinea: 'aerolineas'
         };
 
         const selectFields = [
@@ -107,7 +110,10 @@ export async function GET(req: NextRequest) {
             'mostraranulacion',
             'porfechadocumento',
             'mostrarsolorevisados',
-            'revisado'
+            'revisado',
+            'mostrarsoloreembolsos',
+            'soloreembolsos',
+            'gds'
         ];
 
         const formattedParams = recordset.map((row: any) => {
@@ -131,7 +137,17 @@ export async function GET(req: NextRequest) {
             else if (lowerName === 'cd_paisdestino') label = 'País Destino';
             else if (lowerName === 'cd_paisitinerario') label = 'País en Itinerario';
             else if (lowerName === 'cd_farebasis') label = 'Fare Basis';
-            else if (lowerName === 'mostrarsolorevisados' || lowerName === 'revisado') label = 'Solo Revisados';
+            else if (lowerName === 'cd_farebasisreal' || lowerName === 'farebasisreal') label = 'Farebasis Real';
+            else if (lowerName === 'mostrarsolorevisados') label = 'Mostrar revisados';
+            else if (lowerName === 'revisado') label = 'Solo Revisados';
+            else if (lowerName === 'mostrarsoloreembolsos' || lowerName === 'soloreembolsos') label = 'Solo con Reembolso';
+            else if (lowerName === 'nacionalidadreal') label = 'Nacionalidad Real';
+            else if (lowerName === 'cd_pnr') label = 'Código PNR';
+            else if (lowerName === 'cd_tiquete') label = 'Número de Tiquete';
+            else if (lowerName === 'ds_pax') label = 'Nombre del Pasajero';
+            else if (lowerName === 'cd_aerolinea') label = 'Aerolínea';
+            else if (lowerName === 'cd_centrocosto') label = 'Centro de Costo';
+            else if (lowerName === 'gds') label = 'Sistema GDS';
             else {
                 label = label.charAt(0).toUpperCase() + label.slice(1);
             }
@@ -140,6 +156,13 @@ export async function GET(req: NextRequest) {
             let type: 'text' | 'date' | 'select' | 'number' = 'text';
             let options: { label: string; value: string }[] | undefined = undefined;
             let defaultValue = '';
+            let placeholder = 'Ingrese valor...';
+
+            if (lowerName === 'cd_farebasisreal' || lowerName === 'farebasisreal') {
+                placeholder = 'Todos o Ej: 2A/2A';
+            } else if (lowerName === 'cd_farebasis') {
+                placeholder = 'Todos o Ej: JA2AA/JA2AA';
+            }
 
             if (typeName.includes('date') || typeName.includes('time') || lowerName.includes('fecha') || lowerName.startsWith('dt_')) {
                 type = 'date';
@@ -153,12 +176,32 @@ export async function GET(req: NextRequest) {
                 }
             } else if (selectFields.some((f) => lowerName.includes(f))) {
                 type = 'select';
-                if (lowerName === 'nacionalidad') {
+                if (lowerName === 'nacionalidadreal') {
+                    options = [
+                        { label: 'Todos', value: '' },
+                        { label: 'Nacional', value: 'Nacional' },
+                        { label: 'Internacional', value: 'Internacional' }
+                    ];
+                } else if (lowerName === 'nacionalidad') {
                     options = [
                         { label: 'Todos / Ambas', value: '' },
                         { label: 'Nacional', value: 'Nacional' },
                         { label: 'Internacional', value: 'Internacional' }
                     ];
+                } else if (lowerName === 'gds') {
+                    options = [
+                        { label: 'Todos', value: '' },
+                        { label: 'Sabre', value: 'Sabre' },
+                        { label: 'Amadeus', value: 'Amadeus' }
+                    ];
+                    defaultValue = '';
+                } else if (lowerName === 'mostrarsoloreembolsos' || lowerName === 'soloreembolsos') {
+                    options = [
+                        { label: 'Todos', value: '' },
+                        { label: 'Solo con Reembolso (Sí)', value: 'SI' },
+                        { label: 'Solo sin Reembolso (No)', value: 'NO' }
+                    ];
+                    defaultValue = '';
                 } else {
                     options = [
                         { label: 'Seleccionar...', value: '' },
@@ -180,6 +223,8 @@ export async function GET(req: NextRequest) {
                 section = 'Fechas';
             } else if (lowerName.includes('ciudad') || lowerName.includes('ruta') || lowerName.includes('itinerario') || lowerName.includes('origen') || lowerName.includes('destino') || lowerName.includes('pais') || lowerName.includes('farebasis')) {
                 section = 'Rutas & Itinerarios';
+            } else if (lowerName.includes('pnr') || lowerName.includes('tiquete') || lowerName.includes('pax') || lowerName.includes('gds') || lowerName.includes('aerolinea')) {
+                section = 'Reservas & Tiquetes';
             } else if (lowerName.includes('remision') || lowerName.includes('concepto') || lowerName.includes('factura') || lowerName.includes('cargo') || lowerName.includes('impuesto')) {
                 section = 'Documentos & Conceptos';
             } else if (lowerName.includes('mostrar') || lowerName.includes('categoria') || lowerName.includes('variable') || lowerName.includes('etapa') || lowerName.includes('venta') || lowerName.includes('revisado')) {
@@ -193,16 +238,27 @@ export async function GET(req: NextRequest) {
                 lookupType,
                 section,
                 defaultValue,
+                placeholder,
                 options,
                 required: false
             };
         });
 
+        // Filtrar parámetros técnicos legados si existen equivalentes modernos
+        const hasModernDates = formattedParams.some(p => p.name.toLowerCase() === 'fecha_inicio');
+        const legacyRedundant = new Set([
+            'id_usuario', 'dt_desde', 'dt_hasta', 'bl_fecha', 'bl_tkt', 'bl_pax', 'bl_pnr', 'bl_cliente',
+            'clientes', 'sucursales', 'implantes', 'tiquete'
+        ]);
+        const finalParams = hasModernDates 
+            ? formattedParams.filter(p => !legacyRedundant.has(p.name.toLowerCase()))
+            : formattedParams;
+
         return NextResponse.json({
             success: true,
             spName,
-            count: formattedParams.length,
-            parameters: formattedParams
+            count: finalParams.length,
+            parameters: finalParams
         });
     } catch (err: any) {
         console.error('[DETECT_PARAMS_ERROR]', err);

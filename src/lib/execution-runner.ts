@@ -102,9 +102,80 @@ export class ExecutionRunner {
             const rawSpClean = req.spName.replace(/^dbo\./, '').replace(/^\[dbo\]\./, '').replace(/^\[/, '').replace(/\]$/, '');
             const safeQualifiedName = `[dbo].[${rawSpClean}]`;
             const result = await execReq.execute(safeQualifiedName);
-            const recordset = result.recordset || [];
+            let finalData: any[] = (result.recordset as any[]) || [];
+
+            // 4.1 Garantía universal de columna y cálculo dinámico de FarebasisReal
+            if (finalData.length > 0) {
+                const hasFarebasisCol = Object.keys(finalData[0]).some(k => k.toUpperCase() === 'FAREBASIS');
+                const hasFarebasisRealCol = Object.keys(finalData[0]).some(k => k.toLowerCase() === 'farebasisreal');
+
+                if (hasFarebasisCol) {
+                    let activeRules: any[] = [];
+                    try {
+                        const { FareBasisService } = await import('./farebasis-service');
+                        activeRules = await FareBasisService.getAllRules(true);
+                    } catch (_) {}
+
+                    const { FareBasisService } = await import('./farebasis-service');
+                    finalData = finalData.map((row: any) => {
+                        const fbOriginal = row.FAREBASIS ?? row.FareBasis ?? row.farebasis;
+                        const airlineIdent = (row.EntVendedora ? String(row.EntVendedora).trim().substring(0, 3) : '') ||
+                                             row.cd_EntVend ||
+                                             row.Aerolinea ||
+                                             row.Documento ||
+                                             row.cd_aero_siglas;
+
+                        const calculated = FareBasisService.computeFarebasisReal(
+                            fbOriginal,
+                            airlineIdent,
+                            activeRules
+                        );
+
+                        const finalVal = (row.FarebasisReal && row.FarebasisReal !== fbOriginal)
+                            ? row.FarebasisReal
+                            : (calculated ?? row.FarebasisReal ?? fbOriginal);
+
+                        return { ...row, FarebasisReal: finalVal };
+                    });
+                }
+
+                // 4.2 Filtrado de respaldo en memoria si se solicitó cd_FarebasisReal
+                const paramKey = Object.keys(req.parameters || {}).find(k => k.toLowerCase() === 'cd_farebasisreal' || k.toLowerCase() === 'farebasisreal');
+                const filterVal = paramKey ? String(req.parameters[paramKey] || '').trim().toUpperCase() : '';
+                if (filterVal && filterVal !== 'TODOS' && filterVal !== 'ALL' && filterVal !== '0') {
+                    const targets = filterVal.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                    if (targets.length > 0) {
+                        finalData = finalData.filter((row: any) => {
+                            const fbr = String(row.FarebasisReal || '').trim().toUpperCase();
+                            return targets.some(target => fbr.includes(target));
+                        });
+                    }
+                }
+
+                // 4.3 Filtrado de respaldo en memoria si se solicitó MostrarSoloReembolsos
+                const reembParamKey = Object.keys(req.parameters || {}).find(k =>
+                    k.toLowerCase() === 'mostrarsoloreembolsos' ||
+                    k.toLowerCase() === 'soloreembolsos' ||
+                    k.toLowerCase() === 'conreembolso'
+                );
+                if (reembParamKey) {
+                    const rVal = String(req.parameters[reembParamKey] || '').trim().toUpperCase();
+                    if (rVal === 'SI' || rVal === '1' || rVal === 'TRUE') {
+                        finalData = finalData.filter((row: any) => {
+                            const nr = row.NumeroReembolso ?? row.numeroReembolso ?? row.numeroreembolso;
+                            return nr !== undefined && nr !== null && String(nr).trim() !== '';
+                        });
+                    } else if (rVal === 'NO' || rVal === '0' || rVal === 'FALSE') {
+                        finalData = finalData.filter((row: any) => {
+                            const nr = row.NumeroReembolso ?? row.numeroReembolso ?? row.numeroreembolso;
+                            return nr === undefined || nr === null || String(nr).trim() === '';
+                        });
+                    }
+                }
+            }
+
             const elapsedTime = Date.now() - startTime;
-            const columns = recordset.length > 0 ? Object.keys(recordset[0]) : [];
+            const columns = finalData.length > 0 ? Object.keys(finalData[0]) : [];
 
             // 5. Auditoría de éxito
             await AuditLogger.log({
@@ -119,7 +190,7 @@ export class ExecutionRunner {
                     spName: req.spName,
                     server: req.profile.server,
                     database: activeDatabase,
-                    recordCount: recordset.length,
+                    recordCount: finalData.length,
                     durationMs: elapsedTime,
                     parameters: sanitizePayload(req.parameters)
                 }
@@ -133,10 +204,10 @@ export class ExecutionRunner {
                 spName: req.spName,
                 targetDatabase: activeDatabase,
                 serverHost: req.profile.server,
-                recordCount: recordset.length,
+                recordCount: finalData.length,
                 elapsedTimeMs: elapsedTime,
                 columns,
-                data: recordset
+                data: finalData
             };
         } catch (err: any) {
             const elapsedTime = Date.now() - startTime;

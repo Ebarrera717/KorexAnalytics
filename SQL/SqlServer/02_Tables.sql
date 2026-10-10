@@ -196,3 +196,22 @@ BEGIN
         [updatedAt] DATETIME2 NOT NULL CONSTRAINT DF_KAX_License_UpdatedAt DEFAULT SYSUTCDATETIME()
     );
 END;
+
+-- 11. TABLA: KAX_FareBasisRule (Maestro de Configuración de Extracción de Fare Basis por Aerolínea)
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'KAX_FareBasisRule' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.[KAX_FareBasisRule] (
+        [id] INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_KAX_FareBasisRule PRIMARY KEY CLUSTERED,
+        [airlineCode] NVARCHAR(20) NOT NULL CONSTRAINT UQ_KAX_FareBasisRule_Code UNIQUE,
+        [airlineName] NVARCHAR(150) NOT NULL,
+        [startPos] INT NOT NULL CONSTRAINT DF_KAX_FareBasisRule_StartPos DEFAULT 1,
+        [length] INT NOT NULL CONSTRAINT DF_KAX_FareBasisRule_Length DEFAULT 2,
+        [separator] NVARCHAR(10) NOT NULL CONSTRAINT DF_KAX_FareBasisRule_Separator DEFAULT '/',
+        [isActive] BIT NOT NULL CONSTRAINT DF_KAX_FareBasisRule_IsActive DEFAULT 1,
+        [createdAt] DATETIME2 NOT NULL CONSTRAINT DF_KAX_FareBasisRule_CreatedAt DEFAULT SYSUTCDATETIME(),
+        [updatedAt] DATETIME2 NOT NULL CONSTRAINT DF_KAX_FareBasisRule_UpdatedAt DEFAULT SYSUTCDATETIME()
+    );
+    CREATE NONCLUSTERED INDEX IX_KAX_FareBasisRule_AirlineCode ON dbo.[KAX_FareBasisRule]([airlineCode]);
+    CREATE NONCLUSTERED INDEX IX_KAX_FareBasisRule_IsActive ON dbo.[KAX_FareBasisRule]([isActive]);
+END;
+

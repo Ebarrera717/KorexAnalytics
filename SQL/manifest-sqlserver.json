@@ -1,9 +1,9 @@
 {
   "engine": "SQLSERVER",
   "version": "1.0.0",
-  "generatedAt": "2026-10-06T18:20:25.789Z",
-  "expectedTablesCount": 10,
-  "expectedProceduresCount": 11,
+  "generatedAt": "2026-10-09T18:04:04.033Z",
+  "expectedTablesCount": 11,
+  "expectedProceduresCount": 14,
   "files": [
     {
       "file": "01_CreateDatabase.sql",
@@ -12,18 +12,18 @@
     },
     {
       "file": "02_Tables.sql",
-      "sha256": "055b46a029247e55d71440b7b17e390e3b79b38976076f8b9038f5f71d7dab15",
-      "bytes": 12724
+      "sha256": "5c207a0f48c2d2d3883615130135355aff999999a629e0693fed076715b89294",
+      "bytes": 14098
     },
     {
       "file": "03_InitialData.sql",
-      "sha256": "8472edb87afd7fa8b836ee03604e454f423794250f77ad69bde9070f91cc8b49",
-      "bytes": 3434
+      "sha256": "e30ad39a218548fc826d4009a30d36e2dbe84e6458a966f00674dd220cd415cc",
+      "bytes": 3785
     },
     {
       "file": "04_StoredProcedures.sql",
-      "sha256": "ab3dfc98cc16283c5ae53efc653a7de2823754e0ded7a3b63251160cda9537ab",
-      "bytes": 8806
+      "sha256": "416d06a9afd8d5be3fbccd7772f67f032d9e5902e3176e3fce2fb652438f7717",
+      "bytes": 13294
     }
   ],
   "tables": [
@@ -36,7 +36,8 @@
     "KAX_ExecutionRun",
     "KAX_SystemAuditLog",
     "KAX_Dashboard",
-    "KAX_License"
+    "KAX_License",
+    "KAX_FareBasisRule"
   ],
   "procedures": [
     "spKAX_RegistrarInicioEjecucion",
@@ -49,7 +50,10 @@
     "spKAX_LicenseAplicar",
     "spKAX_UserListar",
     "spKAX_UserGuardar",
-    "spKAX_RoleListar"
+    "spKAX_RoleListar",
+    "spKAX_FareBasisRuleListar",
+    "spKAX_FareBasisRuleGuardar",
+    "spKAX_FareBasisRuleEliminar"
   ],
-  "masterSha256": "63dbbe1e58f9ec47c2f88778435adef647a436cfee3fda80305109f60a982004"
+  "masterSha256": "c077c629f1e2247197f84f8d0e100d01897f4f3872d30f65bb9614b51067ff16"
 }
