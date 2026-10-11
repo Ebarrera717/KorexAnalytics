@@ -70,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     if (isBlankPage) {
         return (
             <html lang="es" suppressHydrationWarning>
-                <body className="bg-slate-950 text-slate-100 antialiased font-sans" suppressHydrationWarning>
+                <body className="bg-slate-900 text-slate-100 antialiased font-sans" suppressHydrationWarning>
                     {children}
                 </body>
             </html>
@@ -80,12 +80,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
     return (
         <html lang="es" suppressHydrationWarning>
-            <body className="bg-slate-950 text-slate-100 antialiased font-sans" suppressHydrationWarning>
-                <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row antialiased font-sans">
+            <body className="bg-slate-900 text-slate-100 antialiased font-sans" suppressHydrationWarning>
+                <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col md:flex-row antialiased font-sans">
                     {/* Sidebar Desktop */}
-                    <aside className="hidden md:flex flex-col w-64 bg-slate-900 border-r border-slate-800 p-5 shrink-0 select-none">
+                    <aside className="hidden md:flex flex-col w-64 bg-slate-950/80 border-r border-slate-800 p-5 shrink-0 select-none">
                         {/* Brand Logo & Tagline */}
-                        <div className="flex items-center gap-3 pb-6 border-b border-slate-800">
+                        <div className="flex items-center gap-3 pb-6 border-b border-slate-800/80">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-cyan-500/20">
                                 <Activity className="w-5 h-5 text-slate-950" />
                             </div>
@@ -106,7 +106,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                                         href={item.href}
                                         className={`flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
                                             isActive
-                                                ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shadow-sm'
+                                                ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm'
                                                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                                         }`}
                                     >
@@ -121,14 +121,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         </nav>
 
                         {/* User Session Footer */}
-                        <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+                        <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between">
                             <div className="flex items-center gap-2.5 overflow-hidden">
-                                <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                                <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700/80 flex items-center justify-center shrink-0">
                                     <Shield className="w-4 h-4 text-cyan-400" />
                                 </div>
                                 <div className="truncate">
                                     <p className="text-xs font-bold text-slate-200 truncate">{currentUser?.name || 'Administrador'}</p>
-                                    <p className="text-[10px] text-slate-500 truncate">{currentUser?.role || 'SUPER_ADMIN'}</p>
+                                    <p className="text-[10px] text-slate-400 truncate">{currentUser?.role || 'SUPER_ADMIN'}</p>
                                 </div>
                             </div>
                             <button
@@ -146,7 +146,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 
                     {/* Mobile Header */}
-                    <div className="md:hidden flex items-center justify-between p-4 bg-slate-900 border-b border-slate-800">
+                    <div className="md:hidden flex items-center justify-between p-4 bg-slate-950/80 border-b border-slate-800/80">
                         <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-cyan-400 flex items-center justify-center">
                                 <Activity className="w-4 h-4 text-slate-950" />
@@ -162,7 +162,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </div>
 
                     {/* Main Content Area */}
-                    <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-slate-950">
+                    <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-slate-900">
                         {children}
                     </main>
                 </div>

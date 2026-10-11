@@ -247,7 +247,7 @@ export default function UsersManagementPage() {
                 <div className="space-y-6">
                     {/* Top Stats */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+                        <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 flex items-center justify-between">
                             <div>
                                 <p className="text-xs text-slate-400 font-medium">Total Usuarios</p>
                                 <p className="text-2xl font-bold text-white mt-1">{users.length}</p>
@@ -257,7 +257,7 @@ export default function UsersManagementPage() {
                             </div>
                         </div>
 
-                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+                        <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 flex items-center justify-between">
                             <div>
                                 <p className="text-xs text-slate-400 font-medium">Usuarios Activos</p>
                                 <p className="text-2xl font-bold text-emerald-400 mt-1">
@@ -269,7 +269,7 @@ export default function UsersManagementPage() {
                             </div>
                         </div>
 
-                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+                        <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 flex items-center justify-between">
                             <div>
                                 <p className="text-xs text-slate-400 font-medium">Roles Definidos</p>
                                 <p className="text-2xl font-bold text-cyan-300 mt-1">{roles.length}</p>
@@ -281,8 +281,8 @@ export default function UsersManagementPage() {
                     </div>
 
                     {/* Table Card */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-                        <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-800">
+                    <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl">
+                        <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-700/80">
                             <div>
                                 <h2 className="text-sm font-bold text-white">Catálogo de Cuentas de Acceso</h2>
                                 <p className="text-xs text-slate-400">Usuarios con permisos para operar consultas y tableros</p>
@@ -308,7 +308,7 @@ export default function UsersManagementPage() {
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-xs">
-                                    <thead className="bg-slate-950/60 text-slate-400 uppercase font-semibold border-b border-slate-800">
+                                    <thead className="bg-slate-900 text-slate-400 uppercase font-semibold border-b border-slate-700">
                                         <tr>
                                             <th className="py-3 px-4">Usuario</th>
                                             <th className="py-3 px-4">Correo Electrónico</th>
@@ -385,8 +385,8 @@ export default function UsersManagementPage() {
             {activeTab === 'license' && (
                 <div className="space-y-6">
                     {/* Tarjeta de Estado Actual */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                    <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 shadow-xl space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-700/80">
                             <div>
                                 <h2 className="text-base font-bold text-white flex items-center gap-2">
                                     <KeyRound className="w-5 h-5 text-cyan-400" />
@@ -424,7 +424,7 @@ export default function UsersManagementPage() {
 
                         {/* Grid de Atributos */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
+                            <div className="bg-slate-900 border border-slate-700/80 rounded-xl p-4">
                                 <span className="text-[11px] text-slate-400 font-medium">Cliente Autorizado</span>
                                 <div className="flex items-center gap-2 mt-1 text-slate-200 font-semibold text-sm">
                                     <Building className="w-4 h-4 text-cyan-400 shrink-0" />

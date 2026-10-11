@@ -511,7 +511,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return (
         <div className="space-y-4">
             {/* Barra superior de Controles del Tablero */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 shadow-xl shadow-black/20">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3.5 shadow-xl shadow-black/20">
                 {/* Selector y Nombre del Tablero */}
                 <div className="flex items-center space-x-3 flex-wrap">
                     <span className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-sm">
@@ -527,7 +527,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                     if (found) applyDashboard(found);
                                     else if (e.target.value === '') createDefaultWidgets();
                                 }}
-                                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-100 focus:outline-none focus:border-cyan-500 max-w-[220px] truncate"
+                                className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-100 focus:outline-none focus:border-cyan-500 max-w-[220px] truncate"
                             >
                                 <option value="">★ Tablero Sugerido (Dinámico)</option>
                                 {savedDashboards.map(d => (
@@ -543,7 +543,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 onChange={e => setDashboardName(e.target.value)}
                                 placeholder="Nombre del Tablero..."
                                 title="Editar nombre del tablero"
-                                className="bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-lg px-2.5 py-1 text-xs font-semibold text-cyan-300 w-56 focus:outline-none"
+                                className="bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg px-2.5 py-1 text-xs font-semibold text-cyan-300 w-56 focus:outline-none"
                             />
 
                             {currentDashboard && (
@@ -632,7 +632,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {/* Barra de Filtros Globales en Memoria */}
-            <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 flex flex-wrap items-center gap-3 text-xs">
+            <div className="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 flex flex-wrap items-center gap-3 text-xs">
                 <div className="flex items-center space-x-1.5 text-slate-400 text-xs">
                     <Filter className="w-3.5 h-3.5 text-cyan-400" />
                     <span className="font-semibold text-slate-300">Filtros en Memoria:</span>

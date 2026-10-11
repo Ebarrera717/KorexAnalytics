@@ -1017,7 +1017,7 @@ export default function ExecutionsPage() {
             )}
 
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-800/80 p-6 rounded-2xl border border-slate-700/80 shadow-sm">
                 <div className="space-y-1">
                     <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl">
@@ -1027,7 +1027,7 @@ export default function ExecutionsPage() {
                             <h1 className="text-2xl font-black text-white tracking-tight">
                                 Módulo de Ejecuciones Analíticas
                             </h1>
-                            <p className="text-xs text-slate-400">
+                            <p className="text-xs text-slate-300">
                                 Parametrización dinámica, catálogo de Stored Procedures sobre Zeus ERP y SQL Server con trazabilidad total.
                             </p>
                         </div>
@@ -1044,7 +1044,7 @@ export default function ExecutionsPage() {
                     </button>
                     <button
                         onClick={loadProcedures}
-                        className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all cursor-pointer border border-slate-700"
+                        className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition-all cursor-pointer border border-slate-700"
                         title="Recargar procedimientos"
                     >
                         <RefreshCw className={`w-4 h-4 ${loadingProcs ? 'animate-spin' : ''}`} />
@@ -1053,15 +1053,15 @@ export default function ExecutionsPage() {
             </div>
 
             {/* 1. SELECCIÓN DE SERVIDOR Y BASE DE DATOS DESTINO */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-sm space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
                     <Server className="w-4 h-4 text-cyan-400" />
                     <span>1. Servidor y Base de Datos Destino</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 mb-1.5">Perfil de Conexión SQL Server</label>
+                        <label className="block text-[11px] font-bold text-slate-300 mb-1.5">Perfil de Conexión SQL Server</label>
                         <div className="relative">
                             <select
                                 value={selectedProfileId || ''}
@@ -1071,7 +1071,7 @@ export default function ExecutionsPage() {
                                     const prof = profiles.find(p => p.id === id);
                                     if (prof) setSelectedDatabase(prof.defaultDatabase);
                                 }}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:border-cyan-500 focus:outline-none appearance-none cursor-pointer"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:border-cyan-500 focus:outline-none appearance-none cursor-pointer"
                             >
                                 {profiles.map(p => (
                                     <option key={p.id} value={p.id}>
@@ -1084,12 +1084,12 @@ export default function ExecutionsPage() {
                     </div>
 
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-400 mb-1.5">Base de Datos Autorizada</label>
+                        <label className="block text-[11px] font-bold text-slate-300 mb-1.5">Base de Datos Autorizada</label>
                         <div className="relative">
                             <select
                                 value={selectedDatabase}
                                 onChange={(e) => setSelectedDatabase(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:border-cyan-500 focus:outline-none appearance-none cursor-pointer"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:border-cyan-500 focus:outline-none appearance-none cursor-pointer"
                             >
                                 {(activeProfile?.allowedDatabases || [activeProfile?.defaultDatabase || '']).map((db, idx) => (
                                     <option key={idx} value={db}>
@@ -1104,8 +1104,8 @@ export default function ExecutionsPage() {
             </div>
 
             {/* 2. SELECCIÓN DE PROCEDIMIENTO Y PLANTILLAS */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
                     <Database className="w-4 h-4 text-cyan-400" />
                     <span>2. Selección de Procedimiento Almacenado y Plantillas</span>
                 </div>
@@ -1125,7 +1125,7 @@ export default function ExecutionsPage() {
                                         <Edit2 className="w-3.5 h-3.5" />
                                         <span>Editar Definición</span>
                                     </button>
-                                    <span className="text-slate-700">|</span>
+                                    <span className="text-slate-600">|</span>
                                     <button
                                         type="button"
                                         onClick={() => handleDeleteProcedure(selectedProc.id, selectedProc.name)}
@@ -1145,7 +1145,7 @@ export default function ExecutionsPage() {
                                     const p = procedures.find(item => item.id === Number(e.target.value));
                                     if (p) selectProcedure(p);
                                 }}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-10 py-3 text-xs text-white font-bold focus:border-cyan-500 focus:outline-none appearance-none cursor-pointer"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-10 py-3 text-xs text-white font-bold focus:border-cyan-500 focus:outline-none appearance-none cursor-pointer"
                             >
                                 {procedures.map(p => (
                                     <option key={p.id} value={p.id}>
@@ -1178,7 +1178,7 @@ export default function ExecutionsPage() {
                                             const found = presets.find(p => p.id === Number(id));
                                             if (found) applyPreset(found);
                                         }}
-                                        className="w-full bg-slate-950 border border-cyan-500/30 rounded-xl pl-10 pr-10 py-3 text-xs text-cyan-200 font-bold focus:border-cyan-400 focus:outline-none appearance-none cursor-pointer"
+                                        className="w-full bg-slate-900 border border-cyan-500/40 rounded-xl pl-10 pr-10 py-3 text-xs text-cyan-200 font-bold focus:border-cyan-400 focus:outline-none appearance-none cursor-pointer"
                                     >
                                         <option value="">-- Cargar Plantilla Guardada... --</option>
                                         {presets.map(preset => (
@@ -1276,14 +1276,14 @@ export default function ExecutionsPage() {
 
             {/* 3. CONTENEDOR DE FILTROS DINÁMICOS */}
             {selectedProc && (
-                <form onSubmit={handleExecute} className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden space-y-0">
-                    <div className="p-4 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between flex-wrap gap-3">
+                <form onSubmit={handleExecute} className="bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-sm overflow-hidden space-y-0">
+                    <div className="p-4 border-b border-slate-700/80 bg-slate-900/60 flex items-center justify-between flex-wrap gap-3">
                         <div className="flex items-center gap-2">
                             <Filter className="w-4 h-4 text-cyan-400" />
                             <h2 className="text-xs font-bold text-white uppercase tracking-wider">
                                 Filtros de la Consulta (Pantalla Única)
                             </h2>
-                            <span className="text-[11px] text-slate-500 font-mono">
+                            <span className="text-[11px] text-slate-400 font-mono">
                                 ({orderedParams.length - hiddenParamNames.size} de {orderedParams.length} visibles)
                             </span>
                         </div>
@@ -1295,7 +1295,7 @@ export default function ExecutionsPage() {
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                                     showFilterConfig
                                         ? 'bg-cyan-600 text-slate-950'
-                                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                        : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
                                 }`}
                             >
                                 <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -1306,10 +1306,10 @@ export default function ExecutionsPage() {
 
                     {/* Panel de Ajustes de Filtros (Orden, Visibilidad y Edición de Etiquetas) */}
                     {showFilterConfig && (
-                        <div className="p-4 bg-slate-950/80 border-b border-slate-800 space-y-3">
+                        <div className="p-4 bg-slate-900/95 border-b border-slate-700/80 space-y-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div>
-                                    <h3 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                    <h3 className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
                                         Reordenar Ubicación, Visibilidad y Renombrar Filtros
                                     </h3>
                                     <p className="text-[10px] text-slate-400 mt-0.5">
@@ -1337,7 +1337,7 @@ export default function ExecutionsPage() {
                                             className={`flex items-center justify-between p-2 rounded-xl border text-xs transition-all ${
                                                 isHidden
                                                     ? 'bg-slate-900/40 border-slate-800 opacity-60'
-                                                    : 'bg-slate-900 border-slate-700 shadow-sm hover:border-slate-600'
+                                                    : 'bg-slate-800/90 border-slate-700 shadow-sm hover:border-slate-600'
                                             }`}
                                         >
                                             <div className="flex items-center gap-2 truncate pr-2 flex-1 min-w-0">
@@ -1365,7 +1365,7 @@ export default function ExecutionsPage() {
                                                                 }
                                                             }}
                                                             autoFocus
-                                                            className="bg-slate-950 border border-cyan-500 rounded px-2 py-0.5 text-xs text-white focus:outline-none w-full"
+                                                            className="bg-slate-900 border border-cyan-500 rounded px-2 py-0.5 text-xs text-white focus:outline-none w-full"
                                                             placeholder="Nombre de etiqueta"
                                                         />
                                                         <button
@@ -1379,7 +1379,7 @@ export default function ExecutionsPage() {
                                                         <button
                                                             type="button"
                                                             onClick={() => setEditingFilterParam(null)}
-                                                            className="p-1 hover:bg-slate-800 text-slate-400 rounded shrink-0 cursor-pointer"
+                                                            className="p-1 hover:bg-slate-700 text-slate-400 rounded shrink-0 cursor-pointer"
                                                             title="Cancelar"
                                                         >
                                                             <X className="w-3.5 h-3.5" />
@@ -1419,7 +1419,7 @@ export default function ExecutionsPage() {
                                                     type="button"
                                                     disabled={idx === 0}
                                                     onClick={() => moveFilterUp(idx)}
-                                                    className="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30 cursor-pointer"
+                                                    className="p-1 hover:bg-slate-700 rounded text-slate-400 disabled:opacity-30 cursor-pointer"
                                                     title="Subir posición"
                                                 >
                                                     <ArrowUp className="w-3.5 h-3.5" />
@@ -1428,7 +1428,7 @@ export default function ExecutionsPage() {
                                                     type="button"
                                                     disabled={idx === orderedParams.length - 1}
                                                     onClick={() => moveFilterDown(idx)}
-                                                    className="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30 cursor-pointer"
+                                                    className="p-1 hover:bg-slate-700 rounded text-slate-400 disabled:opacity-30 cursor-pointer"
                                                     title="Bajar posición"
                                                 >
                                                     <ArrowDown className="w-3.5 h-3.5" />
@@ -1449,16 +1449,16 @@ export default function ExecutionsPage() {
 
                                 return (
                                     <div key={p.name} className="space-y-1.5">
-                                        <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                                        <label className="text-xs font-bold text-slate-200 flex items-center justify-between">
                                             <span>{p.label} {p.required && <span className="text-red-400">*</span>}</span>
-                                            <span className="text-[10px] text-slate-500 font-mono">@{p.name}</span>
+                                            <span className="text-[10px] text-slate-400 font-mono">@{p.name}</span>
                                         </label>
 
                                         {p.type === 'select' ? (
                                             <select
                                                 value={filterValues[p.name] ?? ''}
                                                 onChange={(e) => setFilterValues(prev => ({ ...prev, [p.name]: e.target.value }))}
-                                                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:border-cyan-500 focus:outline-none cursor-pointer"
+                                                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-100 focus:border-cyan-500 focus:outline-none cursor-pointer"
                                             >
                                                 {p.options?.map((opt) => (
                                                     <option key={opt.value} value={opt.value}>
@@ -1471,7 +1471,7 @@ export default function ExecutionsPage() {
                                                 type="date"
                                                 value={filterValues[p.name] ?? ''}
                                                 onChange={(e) => setFilterValues(prev => ({ ...prev, [p.name]: e.target.value }))}
-                                                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:border-cyan-500 focus:outline-none font-mono"
+                                                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-100 focus:border-cyan-500 focus:outline-none font-mono"
                                             />
                                         ) : (
                                             <div className="relative flex items-center">
@@ -1480,7 +1480,7 @@ export default function ExecutionsPage() {
                                                     value={filterValues[p.name] ?? ''}
                                                     onChange={(e) => setFilterValues(prev => ({ ...prev, [p.name]: e.target.value }))}
                                                     placeholder={p.placeholder || 'Ingrese valor...'}
-                                                    className={`w-full py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:border-cyan-500 focus:outline-none ${
+                                                    className={`w-full py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-100 focus:border-cyan-500 focus:outline-none ${
                                                         p.lookupType ? 'pl-3 pr-9 font-mono' : 'px-3'
                                                     }`}
                                                 />
@@ -1503,13 +1503,13 @@ export default function ExecutionsPage() {
                     </div>
 
                     {/* Barra de Acciones */}
-                    <div className="p-4 bg-slate-950/60 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                    <div className="p-4 bg-slate-900/60 border-t border-slate-700/80 flex flex-wrap items-center justify-between gap-3">
                         <button
                             type="button"
                             onClick={() => {
                                 if (selectedProc) selectProcedure(selectedProc);
                             }}
-                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-700"
+                            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-600"
                         >
                             Restablecer Valores
                         </button>
@@ -1537,9 +1537,9 @@ export default function ExecutionsPage() {
 
             {/* 4. RESULTADOS DE LA EJECUCIÓN */}
             {executionResult && (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm space-y-0">
+                <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl overflow-hidden shadow-sm space-y-0">
                     {/* Header de Resultados */}
-                    <div className="p-5 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-950/50">
+                    <div className="p-5 border-b border-slate-700/80 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-800/95">
                         <div className="flex items-center gap-3">
                             <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
                                 <CheckCircle2 className="w-5 h-5" />
@@ -1551,21 +1551,21 @@ export default function ExecutionsPage() {
                                         {executionResult.traceId}
                                     </span>
                                 </div>
-                                <p className="text-xs text-slate-400 mt-0.5">
-                                    Base: <span className="text-slate-200 font-semibold">{selectedDatabase}</span> • Filas: <span className="text-slate-200 font-semibold" suppressHydrationWarning>{formatNumber(executionResult.recordCount)}</span> • Duración: <span className="text-slate-200 font-semibold">{executionResult.elapsedTimeMs} ms</span>
+                                <p className="text-xs text-slate-300 mt-0.5">
+                                    Base: <span className="text-white font-semibold">{selectedDatabase}</span> • Filas: <span className="text-white font-semibold" suppressHydrationWarning>{formatNumber(executionResult.recordCount)}</span> • Duración: <span className="text-white font-semibold">{executionResult.elapsedTimeMs} ms</span>
                                 </p>
                             </div>
                         </div>
 
                         {/* Pestañas Datos / Totales y Botones de Exportación */}
                         <div className="flex items-center gap-2 flex-wrap">
-                            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+                            <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-700">
                                 <button
                                     onClick={() => setResultTab('data')}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                         resultTab === 'data'
                                             ? 'bg-cyan-600 text-slate-950'
-                                            : 'text-slate-400 hover:text-white'
+                                            : 'text-slate-300 hover:text-white'
                                     }`}
                                 >
                                     <TableIcon className="w-3.5 h-3.5 inline mr-1" />
@@ -1576,7 +1576,7 @@ export default function ExecutionsPage() {
                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                         resultTab === 'totals'
                                             ? 'bg-cyan-600 text-slate-950'
-                                            : 'text-slate-400 hover:text-white'
+                                            : 'text-slate-300 hover:text-white'
                                     }`}
                                 >
                                     <Calculator className="w-3.5 h-3.5 inline mr-1" />
@@ -1587,7 +1587,7 @@ export default function ExecutionsPage() {
                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                         resultTab === 'dashboard'
                                             ? 'bg-cyan-600 text-slate-950 shadow-sm shadow-cyan-600/30'
-                                            : 'text-slate-400 hover:text-white'
+                                            : 'text-slate-300 hover:text-white'
                                     }`}
                                 >
                                     <LayoutDashboard className="w-3.5 h-3.5 inline mr-1" />
@@ -1597,7 +1597,7 @@ export default function ExecutionsPage() {
 
                             <button
                                 onClick={() => setShowColConfigModal(true)}
-                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+                                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl text-xs border border-slate-600 flex items-center gap-1.5 transition-colors cursor-pointer"
                                 title="Configurar visibilidad y orden de columnas"
                             >
                                 <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-400" />
@@ -1606,7 +1606,7 @@ export default function ExecutionsPage() {
 
                             <button
                                 onClick={handleCopyToClipboard}
-                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+                                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl text-xs border border-slate-600 flex items-center gap-1.5 transition-colors cursor-pointer"
                                 title="Copiar al portapapeles formateado para Excel"
                             >
                                 <Copy className="w-3.5 h-3.5 text-cyan-400" />
@@ -1627,7 +1627,7 @@ export default function ExecutionsPage() {
                     {resultTab === 'data' && (
                         <div>
                             {/* Barra de búsqueda y tamaño de página */}
-                            <div className="p-3 border-b border-slate-800 bg-slate-950/30 flex items-center justify-between gap-3 flex-wrap text-xs">
+                            <div className="p-3 border-b border-slate-700/80 bg-slate-900/40 flex items-center justify-between gap-3 flex-wrap text-xs">
                                 <div className="relative w-64">
                                     <input
                                         type="text"
@@ -1637,21 +1637,21 @@ export default function ExecutionsPage() {
                                             setCurrentPage(1);
                                         }}
                                         placeholder="Buscar en resultados..."
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-slate-200 focus:border-cyan-500 focus:outline-none"
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-slate-100 focus:border-cyan-500 focus:outline-none"
                                     />
                                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
                                 </div>
 
                                 <div className="flex items-center gap-3">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-slate-400">Filas por página:</span>
+                                        <span className="text-slate-300">Filas por página:</span>
                                         <select
                                             value={pageSize}
                                             onChange={(e) => {
                                                 setPageSize(Number(e.target.value));
                                                 setCurrentPage(1);
                                             }}
-                                            className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 focus:outline-none"
+                                            className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 focus:outline-none"
                                         >
                                             <option value={25}>25</option>
                                             <option value={50}>50</option>
@@ -1659,7 +1659,7 @@ export default function ExecutionsPage() {
                                             <option value={500}>500</option>
                                         </select>
                                     </div>
-                                    <span className="text-slate-500 font-mono">
+                                    <span className="text-slate-400 font-mono">
                                         Página {currentPage} de {totalPages}
                                     </span>
                                 </div>
@@ -1668,9 +1668,9 @@ export default function ExecutionsPage() {
                             {/* Tabla con scroll horizontal */}
                             <div className="overflow-x-auto max-h-[550px]">
                                 <table className="w-full text-left border-collapse text-xs">
-                                    <thead className="bg-slate-950 text-slate-400 font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800">
+                                    <thead className="bg-slate-900 text-slate-300 font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-700">
                                         <tr>
-                                            <th className="py-3 px-4 w-12 text-center text-slate-500">#</th>
+                                            <th className="py-3 px-4 w-12 text-center text-slate-400">#</th>
                                             {activeColumns.map(col => (
                                                 <th key={col.originalKey} className="py-3 px-4 font-bold whitespace-nowrap">
                                                     {col.customLabel}
@@ -1678,11 +1678,11 @@ export default function ExecutionsPage() {
                                             ))}
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-800/60 font-medium text-slate-300">
+                                    <tbody className="divide-y divide-slate-700/60 font-medium text-slate-200">
                                         {paginatedResults.length > 0 ? (
                                             paginatedResults.map((row, rIdx) => (
-                                                <tr key={rIdx} className="hover:bg-slate-800/40 transition-colors">
-                                                    <td className="py-2.5 px-4 text-center font-mono text-[10px] text-slate-500">
+                                                <tr key={rIdx} className="hover:bg-slate-700/40 transition-colors">
+                                                    <td className="py-2.5 px-4 text-center font-mono text-[10px] text-slate-400">
                                                         {(currentPage - 1) * pageSize + rIdx + 1}
                                                     </td>
                                                     {activeColumns.map(col => {
@@ -1691,10 +1691,10 @@ export default function ExecutionsPage() {
                                                         return (
                                                             <td
                                                                 key={col.originalKey}
-                                                                className={`py-2.5 px-4 whitespace-nowrap ${isNum ? 'text-right font-mono text-cyan-300' : ''}`}
+                                                                className={`py-2.5 px-4 whitespace-nowrap ${isNum ? 'text-right font-mono text-cyan-300 font-semibold' : ''}`}
                                                                 suppressHydrationWarning
                                                             >
-                                                                {val !== null && val !== undefined ? (isNum ? formatNumber(val) : String(val)) : <span className="text-slate-600">-</span>}
+                                                                {val !== null && val !== undefined ? (isNum ? formatNumber(val) : String(val)) : <span className="text-slate-500">-</span>}
                                                             </td>
                                                         );
                                                     })}
@@ -1702,7 +1702,7 @@ export default function ExecutionsPage() {
                                             ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={activeColumns.length + 1} className="py-8 text-center text-slate-500">
+                                                <td colSpan={activeColumns.length + 1} className="py-8 text-center text-slate-400">
                                                     No se encontraron registros que coincidan con la búsqueda.
                                                 </td>
                                             </tr>
@@ -1712,23 +1712,23 @@ export default function ExecutionsPage() {
                             </div>
 
                             {/* Paginación */}
-                            <div className="p-3 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between text-xs">
-                                <span className="text-slate-400">
+                            <div className="p-3 border-t border-slate-700/80 bg-slate-900/60 flex items-center justify-between text-xs">
+                                <span className="text-slate-300">
                                     Mostrando {paginatedResults.length} de {formatNumber(filteredResults.length)} filas
                                 </span>
                                 <div className="flex items-center gap-1">
                                     <button
                                         disabled={currentPage <= 1}
                                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                        className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-bold disabled:opacity-30 cursor-pointer"
+                                        className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-bold disabled:opacity-30 cursor-pointer"
                                     >
                                         Anterior
                                     </button>
-                                    <span className="px-2 font-mono text-slate-300">{currentPage} / {totalPages}</span>
+                                    <span className="px-2 font-mono text-slate-200">{currentPage} / {totalPages}</span>
                                     <button
                                         disabled={currentPage >= totalPages}
                                         onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                        className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-bold disabled:opacity-30 cursor-pointer"
+                                        className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-bold disabled:opacity-30 cursor-pointer"
                                     >
                                         Siguiente
                                     </button>

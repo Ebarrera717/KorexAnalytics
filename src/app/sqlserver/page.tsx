@@ -355,10 +355,10 @@ export default function SQLServerProfilesPage() {
                     <p className="text-sm font-semibold">Cargando servidores registrados...</p>
                 </div>
             ) : profiles.length === 0 ? (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-4">
-                    <Server className="w-12 h-12 text-slate-600 mx-auto" />
+                <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-12 text-center space-y-4">
+                    <Server className="w-12 h-12 text-slate-500 mx-auto" />
                     <h3 className="text-base font-bold text-white">No hay servidores configurados</h3>
-                    <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    <p className="text-xs text-slate-300 max-w-md mx-auto">
                         Agregue un servidor para conectar los procedimientos analíticos con su base de datos de Zeus ERP.
                     </p>
                     <button
@@ -378,14 +378,14 @@ export default function SQLServerProfilesPage() {
                         return (
                             <div
                                 key={profile.id}
-                                className={`bg-slate-900 border rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200 ${
-                                    isZeus ? 'border-cyan-500/30 ring-1 ring-cyan-500/20' : 'border-slate-800 hover:border-slate-700'
+                                className={`bg-slate-800/80 border rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200 ${
+                                    isZeus ? 'border-cyan-500/40 ring-1 ring-cyan-500/30' : 'border-slate-700/80 hover:border-slate-600'
                                 }`}
                             >
                                 {/* Top Banner */}
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="flex items-center gap-3">
-                                        <div className={`p-2.5 rounded-xl ${isZeus ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-400'}`}>
+                                        <div className={`p-2.5 rounded-xl ${isZeus ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-700 text-slate-300'}`}>
                                             <Server className="w-5 h-5" />
                                         </div>
                                         <div>
@@ -405,34 +405,34 @@ export default function SQLServerProfilesPage() {
                                     <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                                         profile.isActive
                                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                            : 'bg-slate-800 text-slate-500 border-slate-700'
+                                            : 'bg-slate-700 text-slate-400 border-slate-600'
                                     }`}>
                                         {profile.isActive ? 'ACTIVO' : 'INACTIVO'}
                                     </span>
                                 </div>
 
                                 {/* Information Box */}
-                                <div className="bg-slate-950/70 rounded-xl p-3.5 space-y-2 text-xs border border-slate-800/80">
+                                <div className="bg-slate-900/90 rounded-xl p-3.5 space-y-2 text-xs border border-slate-700/80">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-slate-400">Base Predeterminada:</span>
+                                        <span className="text-slate-300">Base Predeterminada:</span>
                                         <span className="font-bold text-cyan-300 font-mono">{profile.defaultDatabase}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-slate-400">Usuario SQL:</span>
-                                        <span className="font-mono text-slate-200 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                        <span className="text-slate-300">Usuario SQL:</span>
+                                        <span className="font-mono text-slate-200 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
                                             {profile.username}
                                         </span>
                                     </div>
-                                    <div className="pt-2 border-t border-slate-800/80">
+                                    <div className="pt-2 border-t border-slate-700/80">
                                         <div className="flex items-center justify-between mb-1.5">
-                                            <span className="text-[11px] font-semibold text-slate-400">Bases Autorizadas:</span>
-                                            <span className="text-[10px] text-slate-500">{profile.allowedDatabases?.length || 0} asignadas</span>
+                                            <span className="text-[11px] font-semibold text-slate-300">Bases Autorizadas:</span>
+                                            <span className="text-[10px] text-slate-400">{profile.allowedDatabases?.length || 0} asignadas</span>
                                         </div>
                                         <div className="flex flex-wrap gap-1.5">
                                             {(profile.allowedDatabases || []).map((db, idx) => (
                                                 <span
                                                     key={idx}
-                                                    className="px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-slate-900 text-slate-300 border border-slate-800"
+                                                    className="px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-slate-800 text-slate-200 border border-slate-700"
                                                 >
                                                     {db}
                                                 </span>

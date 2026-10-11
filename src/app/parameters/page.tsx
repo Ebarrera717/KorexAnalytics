@@ -80,7 +80,7 @@ export default function UserParametersPage() {
             )}
 
             {/* Acceso a Maestro de Fare Basis */}
-            <div className="bg-gradient-to-r from-slate-900 to-slate-900/80 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all group shadow-sm">
+            <div className="bg-gradient-to-r from-slate-800/90 to-slate-800/70 border border-slate-700/80 hover:border-cyan-500/50 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all group shadow-sm">
                 <div className="flex items-center gap-3">
                     <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-cyan-400 group-hover:scale-105 transition-transform shrink-0">
                         <Plane className="w-5 h-5" />
@@ -89,23 +89,23 @@ export default function UserParametersPage() {
                         <h3 className="font-extrabold text-sm text-white group-hover:text-cyan-400 transition-colors">
                             Maestro de Reglas de Fare Basis por Aerolínea
                         </h3>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs text-slate-300 mt-0.5">
                             Configura las reglas de extracción segmentada para calcular la columna <strong className="text-cyan-400">FarebasisReal</strong>.
                         </p>
                     </div>
                 </div>
                 <Link
                     href="/parameters/farebasis"
-                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-cyan-500 text-slate-200 hover:text-slate-950 rounded-xl font-bold text-xs transition-all shrink-0 self-start sm:self-auto"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-700 hover:bg-cyan-500 text-slate-100 hover:text-slate-950 rounded-xl font-bold text-xs transition-all shrink-0 self-start sm:self-auto"
                 >
                     <span>Configurar Reglas</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
             </div>
 
-            <form onSubmit={handleSave} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-5 text-xs">
+            <form onSubmit={handleSave} className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 shadow-sm space-y-5 text-xs">
                 <div className="space-y-4">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                         <Database className="w-4 h-4 text-cyan-400" />
                         <span>Preferencia de Conexión</span>
                     </h3>
@@ -117,7 +117,7 @@ export default function UserParametersPage() {
                                 type="text"
                                 value={params.DefaultSQLProfileId || ''}
                                 onChange={e => setParams({ ...params, DefaultSQLProfileId: e.target.value })}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
                             />
                         </div>
                         <div>
@@ -126,14 +126,14 @@ export default function UserParametersPage() {
                                 type="text"
                                 value={params.DefaultDatabase || ''}
                                 onChange={e => setParams({ ...params, DefaultDatabase: e.target.value })}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
                             />
                         </div>
                     </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-800 space-y-4">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <div className="pt-4 border-t border-slate-700/80 space-y-4">
+                    <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                         <Settings2 className="w-4 h-4 text-cyan-400" />
                         <span>Límites y Exportación</span>
                     </h3>
@@ -145,7 +145,7 @@ export default function UserParametersPage() {
                                 type="number"
                                 value={params.MaxRecordsLimit || '5000'}
                                 onChange={e => setParams({ ...params, MaxRecordsLimit: e.target.value })}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
                             />
                         </div>
                         <div>
@@ -153,7 +153,7 @@ export default function UserParametersPage() {
                             <select
                                 value={params.AutoExportFormat || 'EXCEL'}
                                 onChange={e => setParams({ ...params, AutoExportFormat: e.target.value })}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
                             >
                                 <option value="EXCEL">Microsoft Excel (.xlsx)</option>
                                 <option value="CSV">Archivo CSV (.csv)</option>
@@ -163,7 +163,7 @@ export default function UserParametersPage() {
                     </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-800 flex justify-end">
+                <div className="pt-4 border-t border-slate-700/80 flex justify-end">
                     <button
                         type="submit"
                         disabled={saving}

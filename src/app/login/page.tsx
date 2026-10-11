@@ -51,7 +51,7 @@ export default function AnalyticsLoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 antialiased">
+        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 antialiased">
             <div className="max-w-md w-full space-y-6">
                 {/* Brand Header */}
                 <div className="text-center space-y-3">
@@ -65,7 +65,7 @@ export default function AnalyticsLoginPage() {
                 </div>
 
                 {/* Login Card */}
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-7 shadow-2xl space-y-5">
+                <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-7 shadow-2xl space-y-5">
                     {error && (
                         <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
                             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -77,14 +77,14 @@ export default function AnalyticsLoginPage() {
                         <div>
                             <label className="block text-slate-300 font-bold mb-1.5">Correo Electrónico</label>
                             <div className="relative">
-                                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                                 <input
                                     type="email"
                                     required
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     placeholder="admin@korexanalytics.com"
-                                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl pl-10 pr-3.5 py-2.5 focus:border-cyan-500 focus:outline-none"
+                                    className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-xl pl-10 pr-3.5 py-2.5 focus:border-cyan-500 focus:outline-none"
                                 />
                             </div>
                         </div>
@@ -92,14 +92,14 @@ export default function AnalyticsLoginPage() {
                         <div>
                             <label className="block text-slate-300 font-bold mb-1.5">Contraseña</label>
                             <div className="relative">
-                                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                                 <input
                                     type="password"
                                     required
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
                                     placeholder="••••••••••••"
-                                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl pl-10 pr-3.5 py-2.5 focus:border-cyan-500 focus:outline-none"
+                                    className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-xl pl-10 pr-3.5 py-2.5 focus:border-cyan-500 focus:outline-none"
                                 />
                             </div>
                         </div>

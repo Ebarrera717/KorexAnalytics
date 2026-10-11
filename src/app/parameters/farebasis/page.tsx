@@ -287,45 +287,45 @@ export default function FareBasisRulesPage() {
             )}
 
             {/* Explicación de Arquitectura */}
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 flex items-start gap-3">
+            <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 text-xs text-slate-300 flex items-start gap-3">
                 <HelpCircle className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                     <p className="font-semibold text-white">¿Cómo opera la regla de extracción?</p>
                     <p className="text-slate-400">
-                        Cada segmento de la ruta tarifaria separado por el delimitador (por defecto <code className="text-cyan-400 bg-slate-800 px-1 py-0.5 rounded">/</code>) se extrae individualmente con la posición inicial y cantidad de caracteres parametrizados. Si una aerolínea no tiene regla activa, se utiliza su <code className="text-slate-300">Fare Basis</code> original intacto.
+                        Cada segmento de la ruta tarifaria separado por el delimitador (por defecto <code className="text-cyan-400 bg-slate-900 px-1 py-0.5 rounded border border-slate-700">/</code>) se extrae individualmente con la posición inicial y cantidad de caracteres parametrizados. Si una aerolínea no tiene regla activa, se utiliza su <code className="text-slate-300">Fare Basis</code> original intacto.
                     </p>
                 </div>
             </div>
 
             {/* Barra de Búsqueda y Filtros */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-3 rounded-2xl">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-800/80 border border-slate-700/80 p-3 rounded-2xl">
                 <div className="relative flex-1">
-                    <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                         type="text"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         placeholder="Buscar por código (ej: 001) o nombre de aerolínea..."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white placeholder-slate-400 focus:border-cyan-500 focus:outline-none"
                     />
                 </div>
 
-                <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-700 text-xs">
                     <button
                         onClick={() => setStatusFilter('all')}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${statusFilter === 'all' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${statusFilter === 'all' ? 'bg-cyan-500 text-slate-950' : 'text-slate-300 hover:text-white'}`}
                     >
                         Todas ({rules.length})
                     </button>
                     <button
                         onClick={() => setStatusFilter('active')}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${statusFilter === 'active' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${statusFilter === 'active' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300 hover:text-white'}`}
                     >
                         Activas ({rules.filter(r => r.isActive).length})
                     </button>
                     <button
                         onClick={() => setStatusFilter('inactive')}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${statusFilter === 'inactive' ? 'bg-rose-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition-colors ${statusFilter === 'inactive' ? 'bg-rose-500 text-slate-950' : 'text-slate-300 hover:text-white'}`}
                     >
                         Inactivas ({rules.filter(r => !r.isActive).length})
                     </button>
@@ -333,10 +333,10 @@ export default function FareBasisRulesPage() {
             </div>
 
             {/* Tabla de Reglas */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+            <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs text-slate-300">
-                        <thead className="bg-slate-950 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        <thead className="bg-slate-900 border-b border-slate-700 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                             <tr>
                                 <th className="py-3 px-4">Código</th>
                                 <th className="py-3 px-4">Aerolínea</th>
